@@ -1,0 +1,158 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="ColorWindow">#101317</Color>
+    <Color x:Key="ColorPanel">#171B21</Color>
+    <Color x:Key="ColorPanelAlt">#12161C</Color>
+    <Color x:Key="ColorBorder">#2C333D</Color>
+    <Color x:Key="ColorButton">#222933</Color>
+    <Color x:Key="ColorButtonHover">#2C3642</Color>
+    <Color x:Key="ColorPrimary">#2F8F7B</Color>
+    <Color x:Key="ColorPrimaryHover">#38A98F</Color>
+    <Color x:Key="ColorDanger">#A33A43</Color>
+    <Color x:Key="ColorText">#F2F5F7</Color>
+    <Color x:Key="ColorTextMuted">#AAB4C0</Color>
+
+    <SolidColorBrush x:Key="AppWindowBrush" Color="{StaticResource ColorWindow}"/>
+    <SolidColorBrush x:Key="AppPanelBrush" Color="{StaticResource ColorPanel}"/>
+    <SolidColorBrush x:Key="AppPanelAltBrush" Color="{StaticResource ColorPanelAlt}"/>
+    <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource ColorBorder}"/>
+    <SolidColorBrush x:Key="AppButtonBrush" Color="{StaticResource ColorButton}"/>
+    <SolidColorBrush x:Key="AppButtonHoverBrush" Color="{StaticResource ColorButtonHover}"/>
+    <SolidColorBrush x:Key="AppPrimaryBrush" Color="{StaticResource ColorPrimary}"/>
+    <SolidColorBrush x:Key="AppPrimaryHoverBrush" Color="{StaticResource ColorPrimaryHover}"/>
+    <SolidColorBrush x:Key="AppDangerBrush" Color="{StaticResource ColorDanger}"/>
+    <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource ColorText}"/>
+    <SolidColorBrush x:Key="AppMutedTextBrush" Color="{StaticResource ColorTextMuted}"/>
+
+    <Style x:Key="DialogShellBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource AppPanelBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+
+    <Style x:Key="DialogTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="DialogBodyTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <Style x:Key="DialogContentBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource AppPanelAltBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="12"/>
+    </Style>
+
+    <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="IsReadOnly" Value="True"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="AcceptsReturn" Value="True"/>
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+    </Style>
+
+    <Style x:Key="DialogPasswordBoxStyle" TargetType="PasswordBox">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource AppPanelAltBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <Style x:Key="DialogButtonStyle" TargetType="Button">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="MinWidth" Value="92"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource AppButtonBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource AppButtonHoverBrush}"/>
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="#486070"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#1A2028"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chrome" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DialogPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource AppPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="#55B8A4"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AppPrimaryHoverBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DialogCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
+        <Setter Property="Width" Value="30"/>
+        <Setter Property="MinWidth" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Content" Value="X"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AppDangerBrush}"/>
+                <Setter Property="BorderBrush" Value="#C85A63"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DialogCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Margin" Value="0,0,0,7"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style TargetType="ProgressBar">
+        <Setter Property="Height" Value="8"/>
+        <Setter Property="Foreground" Value="{StaticResource AppPrimaryBrush}"/>
+        <Setter Property="Background" Value="{StaticResource AppPanelAltBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+    </Style>
+</ResourceDictionary>

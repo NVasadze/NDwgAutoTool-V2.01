@@ -1,0 +1,73 @@
+<Window x:Class="NDwgAutoTool.StyledBlockChoiceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Insert Optional Blocks"
+        Height="400"
+        Width="620"
+        MinWidth="420"
+        MinHeight="260"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        SizeToContent="Manual"
+        ShowInTaskbar="False"
+        Topmost="True">
+
+    <Border Style="{StaticResource DialogShellBorderStyle}"
+            MouseLeftButtonDown="WindowDragArea_MouseLeftButtonDown">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="Insert Optional Blocks"
+                           Style="{StaticResource DialogTitleTextStyle}"/>
+
+                <Button x:Name="CloseButton"
+                        Grid.Column="1"
+                        Click="CloseButton_Click"
+                        Style="{StaticResource DialogCloseButtonStyle}"/>
+            </Grid>
+
+            <TextBlock x:Name="InstructionTextBlock"
+                       Grid.Row="2"
+                       Text="Select optional block(s) to insert."
+                       Style="{StaticResource DialogBodyTextStyle}"/>
+
+            <Border Grid.Row="4" Style="{StaticResource DialogContentBorderStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="BlockListPanel"/>
+                </ScrollViewer>
+            </Border>
+
+            <StackPanel Grid.Row="6"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="NoButton"
+                        Content="None"
+                        Margin="0,0,8,0"
+                        Click="NoButton_Click"
+                        Style="{StaticResource DialogButtonStyle}"/>
+                <Button x:Name="OkButton"
+                        Content="Insert"
+                        Click="OkButton_Click"
+                        Style="{StaticResource DialogPrimaryButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

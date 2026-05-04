@@ -1,0 +1,123 @@
+<Window x:Class="NDwgAutoTool.BatchResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Batch Result"
+        Height="390"
+        Width="580"
+        MinWidth="420"
+        MinHeight="280"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True">
+
+    <Border Style="{StaticResource DialogShellBorderStyle}"
+            MouseLeftButtonDown="WindowDragArea_MouseLeftButtonDown">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="Batch Result"
+                           Style="{StaticResource DialogTitleTextStyle}"/>
+
+                <Button x:Name="CloseButton"
+                        Grid.Column="1"
+                        Click="CloseButton_Click"
+                        Style="{StaticResource DialogCloseButtonStyle}"/>
+            </Grid>
+
+            <Border Grid.Row="2" Style="{StaticResource DialogContentBorderStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Processed"
+                                   Foreground="{StaticResource AppMutedTextBrush}"
+                                   FontSize="12"/>
+                        <TextBlock x:Name="ProcessedTextBlock"
+                                   Text="0"
+                                   Foreground="{StaticResource AppTextBrush}"
+                                   FontSize="22"
+                                   FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Succeeded"
+                                   Foreground="{StaticResource AppMutedTextBrush}"
+                                   FontSize="12"/>
+                        <TextBlock x:Name="SucceededTextBlock"
+                                   Text="0"
+                                   Foreground="#5CCB87"
+                                   FontSize="22"
+                                   FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Failed"
+                                   Foreground="{StaticResource AppMutedTextBrush}"
+                                   FontSize="12"/>
+                        <TextBlock x:Name="FailedTextBlock"
+                                   Text="0"
+                                   Foreground="#D96C75"
+                                   FontSize="22"
+                                   FontWeight="Bold"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Failed Drawings"
+                           Foreground="{StaticResource AppTextBrush}"
+                           FontSize="13"
+                           FontWeight="SemiBold"/>
+
+                <Border Grid.Row="2" Style="{StaticResource DialogContentBorderStyle}">
+                    <TextBox x:Name="FailedDrawingsTextBox"
+                             FontFamily="Consolas"
+                             Style="{StaticResource DialogTextBoxStyle}"/>
+                </Border>
+            </Grid>
+
+            <StackPanel Grid.Row="6"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="CopyButton"
+                        Content="Copy Failed"
+                        Margin="0,0,8,0"
+                        Click="CopyButton_Click"
+                        Style="{StaticResource DialogButtonStyle}"/>
+                <Button x:Name="OkButton"
+                        Content="OK"
+                        Click="OkButton_Click"
+                        Style="{StaticResource DialogPrimaryButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

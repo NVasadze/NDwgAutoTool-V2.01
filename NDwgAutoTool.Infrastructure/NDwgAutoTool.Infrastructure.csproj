@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>NDwgAutoTool</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NDwgAutoTool.Application\NDwgAutoTool.Application.csproj" />
+    <ProjectReference Include="..\NDwgAutoTool.Domain\NDwgAutoTool.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EPPlus" Version="8.5.0" />
+  </ItemGroup>
+
+</Project>

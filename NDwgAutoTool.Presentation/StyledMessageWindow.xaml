@@ -1,0 +1,62 @@
+<Window x:Class="NDwgAutoTool.StyledMessageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Notification"
+        Height="260"
+        Width="440"
+        MinWidth="360"
+        MinHeight="220"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True">
+
+    <Border Style="{StaticResource DialogShellBorderStyle}"
+            MouseLeftButtonDown="WindowDragArea_MouseLeftButtonDown">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="Notification"
+                           Style="{StaticResource DialogTitleTextStyle}"/>
+
+                <Button x:Name="CloseButton"
+                        Grid.Column="1"
+                        Click="CloseButton_Click"
+                        Style="{StaticResource DialogCloseButtonStyle}"/>
+            </Grid>
+
+            <Border Grid.Row="2" Style="{StaticResource DialogContentBorderStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="MessageTextBlock"
+                               Text="Message"
+                               Style="{StaticResource DialogBodyTextStyle}"/>
+                </ScrollViewer>
+            </Border>
+
+            <StackPanel Grid.Row="4"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="OkButton"
+                        Content="OK"
+                        Click="OkButton_Click"
+                        Style="{StaticResource DialogPrimaryButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

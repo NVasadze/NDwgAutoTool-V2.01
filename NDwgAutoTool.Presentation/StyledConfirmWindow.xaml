@@ -1,0 +1,70 @@
+<Window x:Class="NDwgAutoTool.StyledConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Confirm"
+        Height="300"
+        Width="500"
+        MinWidth="380"
+        MinHeight="230"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True">
+
+    <Border Style="{StaticResource DialogShellBorderStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="14"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="Confirm"
+                           Style="{StaticResource DialogTitleTextStyle}"/>
+
+                <Button x:Name="CloseButton"
+                        Grid.Column="1"
+                        Click="CloseButton_Click"
+                        Style="{StaticResource DialogCloseButtonStyle}"/>
+            </Grid>
+
+            <TextBlock Grid.Row="2"
+                       x:Name="QuestionTextBlock"
+                       Text="Are you sure?"
+                       Style="{StaticResource DialogBodyTextStyle}"/>
+
+            <Border Grid.Row="4" Style="{StaticResource DialogContentBorderStyle}">
+                <TextBox x:Name="DetailsTextBox"
+                         Style="{StaticResource DialogTextBoxStyle}"/>
+            </Border>
+
+            <StackPanel Grid.Row="6"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="NoButton"
+                        Content="No"
+                        Margin="0,0,8,0"
+                        Click="NoButton_Click"
+                        Style="{StaticResource DialogButtonStyle}"/>
+                <Button x:Name="YesButton"
+                        Content="Yes"
+                        Click="YesButton_Click"
+                        Style="{StaticResource DialogPrimaryButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
