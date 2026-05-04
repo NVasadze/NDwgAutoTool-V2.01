@@ -19,14 +19,4 @@ Dependency direction:
 
 ## Performance
 
-V2.01 indexes the resource folder once and reuses the discovered file paths. WORK_LIST, N-DWG notes, BOM, and note-block lookups are cached and automatically refreshed when the source file timestamp changes.
-
-## Resource Root
-
-V2.01 does not read `NetworkRootPath.txt`. All shared resources are resolved under:
-
-`U:\Vasadze\TEST`
-
-## Publishing
-
-`NDwgAutoTool.Presentation.csproj` is configured for `win-x64`, self-contained, single-file publish. Because the app uses SolidWorks and Office COM references, publish from Visual Studio or Visual Studio MSBuild instead of plain SDK `dotnet publish`.
+V2.01 indexes the resource folder once and reuses the discovered file paths.
