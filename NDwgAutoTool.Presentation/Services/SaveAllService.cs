@@ -64,6 +64,8 @@ namespace NDwgAutoTool.Services
             if (string.IsNullOrWhiteSpace(path))
                 throw new Exception("Drawing must be saved once before Save All can save it.");
 
+            TurnOffGridIfVisible(drawing, drawingName);
+
             Log($"Save All: zoom to fit -> {drawingName}");
 
             try
@@ -90,6 +92,34 @@ namespace NDwgAutoTool.Services
             Log($"Save All: saved -> {drawingName}");
 
             return drawingName;
+        }
+
+        private void TurnOffGridIfVisible(ModelDoc2 drawing, string drawingName)
+        {
+            try
+            {
+                var extension = drawing.Extension;
+
+                bool gridVisible = extension.GetUserPreferenceToggle(
+                    (int)swUserPreferenceToggle_e.swGridDisplay,
+                    (int)swUserPreferenceOption_e.swDetailingNoOptionSpecified);
+
+                if (!gridVisible)
+                    return;
+
+                bool changed = extension.SetUserPreferenceToggle(
+                    (int)swUserPreferenceToggle_e.swGridDisplay,
+                    (int)swUserPreferenceOption_e.swDetailingNoOptionSpecified,
+                    false);
+
+                Log(changed
+                    ? $"Save All: grid display turned off -> {drawingName}"
+                    : $"Save All: grid display was visible but could not be turned off -> {drawingName}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Save All: could not check grid display for {drawingName} | {ex.Message}");
+            }
         }
     }
 }

@@ -17,6 +17,8 @@ namespace NDwgAutoTool.Form3
 
     public class Form3SolidWorksService
     {
+        private ModelDoc2? _targetModel;
+
         [DllImport("ole32.dll", CharSet = CharSet.Unicode)]
         private static extern int CLSIDFromProgID(string progId, out Guid clsid);
 
@@ -45,8 +47,16 @@ namespace NDwgAutoTool.Form3
             }
         }
 
+        public void SetTargetModel(ModelDoc2? model)
+        {
+            _targetModel = model;
+        }
+
         public ModelDoc2? GetActiveModel()
         {
+            if (_targetModel != null)
+                return _targetModel;
+
             var swApp = GetApplication();
             if (swApp == null)
                 return null;
@@ -305,6 +315,20 @@ namespace NDwgAutoTool.Form3
                 return "";
 
             text = text.Trim();
+
+            Match basePartNumber = Regex.Match(
+                text,
+                @"^[A-Z]{4}\d{6}[A-Z]\d{4}",
+                RegexOptions.IgnoreCase);
+
+            if (basePartNumber.Success)
+                return basePartNumber.Value.ToUpperInvariant();
+
+            text = Regex.Replace(
+                text,
+                @"_(?:-)?(?:--|[A-Z]{1,2})$",
+                "",
+                RegexOptions.IgnoreCase).TrimEnd();
 
             while (text.EndsWith("-") || text.EndsWith("_") || text.EndsWith(".") || text.EndsWith(" "))
             {

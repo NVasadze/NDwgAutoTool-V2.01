@@ -1,22 +1,46 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using NDwgAutoTool.Helpers;
+using NDwgAutoTool.Infrastructure.Settings;
 using NDwgAutoTool.Models;
 using NDwgAutoTool.Services;
 using SwConst;
+using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace NDwgAutoTool
 {
     public partial class MainWindow : Window
     {
-        private const double CompactWindowWidth = 210;
-        private const double CompactWindowHeight = 430;
-        private const double ExpandedWindowWidth = 820;
-        private const double ExpandedWindowHeight = 430;
-        private const double LeftPanelWidth = 190;
-        private const double RightPanelWidth = 190;
+        private const double CompactWindowWidth = 143;
+        private const double CompactWindowHeight = 500;
+        private const double CompactHorizontalWindowWidth = 590;
+        private const double CompactHorizontalWindowHeight = 95;
+        private const double CompactHorizontalMinWidth = 590;
+        private const double CompactHorizontalMinHeight = 95;
+        private const double ExpandedWindowWidth = 995;
+        private const double ExpandedWindowHeight = 515;
+        private const double LeftPanelWidth = 125;
+        private const double RightPanelWidth = 270;
+        private const double MaxSidePanelWidth = 310;
         private const double PanelGap = 10;
+        private const double CompactHorizontalButtonGap = 3;
+        private const double CompactHorizontalButtonHeight = 20;
+        private const double CompactHorizontalButtonFontSize = 8;
+        private const double ActionButtonMinHeight = 26;
+        private const double ActionButtonMaxHeight = 34;
+        private const double ActionButtonMinFontSize = 11;
+        private const double ActionButtonMaxFontSize = 13;
+        private const string FarSideViewJapaneseText = "反対面を表示";
+        private const string FarSideViewEnglishText = "(FAR SIDE VIEW)";
+        private const string FarSideViewExpectedText = "<FONT effect=U>反対面を表示<FONT effect=RU>\r\n(FAR SIDE VIEW)";
+        private const double FarSideViewTextHeight = 0.0036;
+        private const double FarSideViewParagraphSpacing = 0.000001;
+        private const double FarSideViewParagraphSpacingTolerance = 0.0000001;
+        private const double FarSideViewYOffset = 0.0120;
+        private const double FarSideViewSheetMargin = 0.0120;
 
         private readonly NDwgAutoTool.Composition.AppServices _services = NDwgAutoTool.Composition.AppServices.Current;
         private UiCommandRunner _commandRunner = null!;
@@ -69,6 +93,8 @@ namespace NDwgAutoTool
 
             if (MaxRestoreButton != null)
                 MaxRestoreButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+
+            UpdateResponsiveLayout();
         }
 
         private void ApplySelected23Button_Click(object sender, RoutedEventArgs e)
@@ -102,6 +128,7 @@ namespace NDwgAutoTool
         }
 
         private bool _isCompactMode = true;
+        private bool _compactButtonsHorizontal;
         private const string ShowMorePassword = "1234"; // Change this password
         private bool _showMorePasswordAccepted = false;
 
@@ -112,10 +139,133 @@ namespace NDwgAutoTool
             _commandRunner = new UiCommandRunner(this, AddLog, SetLastAction, SetStatus);
             MaxRestoreButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
             LoadNetworkRootPathIntoUi();
+            LoadCompactViewPreferences();
+            LoadBatchGroupPreferences();
             ApplyCompactLayout();
-            AddLog("NDwgAutoTool V2.01 started.");
+            RestoreUserWindowLocation();
+            AddLog("NDwgAutoTool V2.04 started.");
             AddLog($"Resource root: {NDwgAutoTool.Services.ResourceLocator.RequiredRootPath}");
             LogResourceAvailability();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            SaveUserWindowLocation();
+            base.OnClosed(e);
+        }
+
+        private void RestoreUserWindowLocation()
+        {
+            var settings = UserSettingsStore.Load();
+            var location = settings.WindowLocation;
+
+            if (location == null || !location.HasValue)
+                return;
+
+            if (!IsFiniteWindowCoordinate(location.Left) ||
+                !IsFiniteWindowCoordinate(location.Top))
+            {
+                return;
+            }
+
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = ClampWindowLeftToVirtualScreen(location.Left);
+            Top = ClampWindowTopToVirtualScreen(location.Top);
+        }
+
+        private void LoadCompactViewPreferences()
+        {
+            var settings = UserSettingsStore.Load();
+            _compactButtonsHorizontal = settings.CompactView?.ButtonsHorizontal == true;
+        }
+
+        private void LoadBatchGroupPreferences()
+        {
+            try
+            {
+                var settings = UserSettingsStore.Load();
+                DrawingBatchExpander.IsExpanded = settings.BatchGroups?.DrawingBatchExpanded == true;
+                DrawingToolsBatchExpander.IsExpanded = settings.BatchGroups?.DrawingToolsExpanded == true;
+            }
+            catch
+            {
+                DrawingBatchExpander.IsExpanded = false;
+                DrawingToolsBatchExpander.IsExpanded = false;
+            }
+        }
+
+        private void SaveUserWindowLocation()
+        {
+            try
+            {
+                var settings = UserSettingsStore.Load();
+
+                settings.CompactView ??= new CompactViewPreferences();
+                settings.CompactView.ButtonsHorizontal = _compactButtonsHorizontal;
+
+                settings.BatchGroups ??= new BatchGroupPreferences();
+                settings.BatchGroups.DrawingBatchExpanded = DrawingBatchExpander?.IsExpanded == true;
+                settings.BatchGroups.DrawingToolsExpanded = DrawingToolsBatchExpander?.IsExpanded == true;
+
+                Rect bounds = WindowState == WindowState.Normal
+                    ? new Rect(Left, Top, Width, Height)
+                    : RestoreBounds;
+
+                if (IsFiniteWindowCoordinate(bounds.Left) &&
+                    IsFiniteWindowCoordinate(bounds.Top))
+                {
+                    settings.WindowLocation = new WindowLocationPreferences
+                    {
+                        HasValue = true,
+                        Left = bounds.Left,
+                        Top = bounds.Top
+                    };
+                }
+
+                UserSettingsStore.Save(settings);
+            }
+            catch
+            {
+                // Window position is only a convenience preference.
+            }
+        }
+
+        private void SaveCompactViewPreferences()
+        {
+            try
+            {
+                var settings = UserSettingsStore.Load();
+                settings.CompactView ??= new CompactViewPreferences();
+                settings.CompactView.ButtonsHorizontal = _compactButtonsHorizontal;
+                UserSettingsStore.Save(settings);
+            }
+            catch
+            {
+                // Compact layout is only a convenience preference.
+            }
+        }
+
+        private static bool IsFiniteWindowCoordinate(double value)
+        {
+            return !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        private double ClampWindowLeftToVirtualScreen(double left)
+        {
+            double min = SystemParameters.VirtualScreenLeft;
+            double max = SystemParameters.VirtualScreenLeft +
+                         Math.Max(0, SystemParameters.VirtualScreenWidth - Math.Min(Width, CompactWindowWidth));
+
+            return Math.Max(min, Math.Min(max, left));
+        }
+
+        private double ClampWindowTopToVirtualScreen(double top)
+        {
+            double min = SystemParameters.VirtualScreenTop;
+            double max = SystemParameters.VirtualScreenTop +
+                         Math.Max(0, SystemParameters.VirtualScreenHeight - Math.Min(Height, CompactWindowHeight));
+
+            return Math.Max(min, Math.Min(max, top));
         }
 
 
@@ -307,6 +457,8 @@ namespace NDwgAutoTool
                     activeDoc,
                     bomRows));
 
+                reportRows.AddRange(BuildFarSideViewNoteReportRows(notes));
+
                 reportRows.AddRange(BuildHoleReportRows(holeCount));
 
                 reportRows.AddRange(BuildSubpartReportRows(
@@ -336,7 +488,7 @@ namespace NDwgAutoTool
                 WriteCheckDwgExcelReport(outputPath, reportRows, drawingPartNo);
 
                 AddLog($"CheckDWG report created -> {outputPath}");
-                StyledMessageWindow.ShowMessage("CheckDWG completed successfully.", "CheckDWG");
+                PromptToOpenExcelReport("CheckDWG", outputPath, AllCheckRowsAreCorrect(reportRows));
             }
             catch (Exception ex)
             {
@@ -398,28 +550,122 @@ namespace NDwgAutoTool
 
         private async void OpenAllButton_Click(object sender, RoutedEventArgs e)
         {
-            var drawingNumbers = OpenAllDrawingsWindow.Ask(this);
+            var request = OpenAllDrawingsWindow.Ask(this);
 
-            if (drawingNumbers is null || drawingNumbers.Count == 0)
+            if (request is null || request.Numbers.Count == 0)
                 return;
 
             SetLastAction("Open All");
             SetStatus("Working...");
-            AddLog($"Open All: requested {drawingNumbers.Count} drawing(s).");
+            AddLog($"Open All: requested {request.Numbers.Count} number(s); types: {request.Selection.Description}.");
 
             StyledProgressWindow? progress = null;
             var failed = new List<string>();
-            IReadOnlyList<string> missing = Array.Empty<string>();
+            var missing = new List<string>();
+            var revisionMismatches = new List<string>();
+            var matches = new List<OpenAllFileMatch>();
             int opened = 0;
+            var requestedNumbers = request.Numbers
+                .Select(FileFinderService.NormalizeRequestedNumber)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            int requested = requestedNumbers.Count * request.Selection.SelectedCount;
 
             try
             {
                 var fileFinder = new FileFinderService();
-                var matches = fileFinder.FindDrawingFiles(drawingNumbers, out missing);
+                var drawingMatchesByNumber = new Dictionary<string, DrawingFileMatch>(StringComparer.OrdinalIgnoreCase);
+                var containerMatchesByNumber = new Dictionary<string, ContainerFileMatch>(StringComparer.OrdinalIgnoreCase);
+                var modelMatchesByNumber = new Dictionary<string, ModelFileMatch>(StringComparer.OrdinalIgnoreCase);
+
+                if (request.Selection.Drawings)
+                {
+                    var drawingMatches = fileFinder.FindDrawingFiles(requestedNumbers, out var missingDrawings);
+                    drawingMatchesByNumber = drawingMatches.ToDictionary(
+                        match => match.DrawingNumber,
+                        StringComparer.OrdinalIgnoreCase);
+                    missing.AddRange(missingDrawings.Select(number => $"{number} (.slddrw)"));
+                }
+
+                if (request.Selection.Containers)
+                {
+                    var containerMatches = fileFinder.FindContainerFiles(requestedNumbers, out var missingContainers);
+                    containerMatchesByNumber = containerMatches.ToDictionary(
+                        match => match.ContainerNumber,
+                        StringComparer.OrdinalIgnoreCase);
+                    missing.AddRange(missingContainers.Select(number => $"{number} (.sldprt)"));
+                }
+
+                if (request.Selection.Models)
+                {
+                    var modelMatches = fileFinder.FindAssemblyFiles(requestedNumbers, out var missingModels);
+                    modelMatchesByNumber = modelMatches.ToDictionary(
+                        match => match.ModelNumber,
+                        StringComparer.OrdinalIgnoreCase);
+                    missing.AddRange(missingModels.Select(number => $"{number} (.sldasm)"));
+                }
+
+                foreach (string number in requestedNumbers)
+                {
+                    var matchesForNumber = new List<OpenAllFileMatch>();
+
+                    if (request.Selection.Drawings &&
+                        drawingMatchesByNumber.TryGetValue(number, out var drawingMatch))
+                    {
+                        matchesForNumber.Add(new OpenAllFileMatch(
+                            OpenAllFileKind.Drawing,
+                            drawingMatch.DrawingNumber,
+                            drawingMatch.Revision,
+                            drawingMatch.FilePath));
+                    }
+
+                    if (request.Selection.Containers &&
+                        containerMatchesByNumber.TryGetValue(number, out var containerMatch))
+                    {
+                        matchesForNumber.Add(new OpenAllFileMatch(
+                            OpenAllFileKind.Container,
+                            containerMatch.ContainerNumber,
+                            containerMatch.Revision,
+                            containerMatch.FilePath));
+                    }
+
+                    if (request.Selection.Models &&
+                        modelMatchesByNumber.TryGetValue(number, out var modelMatch))
+                    {
+                        matchesForNumber.Add(new OpenAllFileMatch(
+                            OpenAllFileKind.Model,
+                            modelMatch.ModelNumber,
+                            modelMatch.Revision,
+                            modelMatch.FilePath));
+                    }
+
+                    if (request.Selection.SelectedCount > 1 &&
+                        matchesForNumber.Count != request.Selection.SelectedCount)
+                    {
+                        AddLog($"Open All: skipped {number} because one or more selected file types were not found.");
+                        continue;
+                    }
+
+                    var revisions = matchesForNumber
+                        .Select(match => match.Revision)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (revisions.Count > 1)
+                    {
+                        string mismatch = BuildOpenAllRevisionMismatch(number, matchesForNumber);
+                        revisionMismatches.Add(mismatch);
+                        AddLog($"Open All revision mismatch: {mismatch}");
+                        continue;
+                    }
+
+                    matches.AddRange(matchesForNumber.OrderBy(GetOpenAllOpenOrder));
+                }
 
                 if (matches.Count == 0)
                 {
-                    string noMatchResult = BuildOpenAllResult(opened, drawingNumbers.Count, missing, failed);
+                    string noMatchResult = BuildOpenAllResult(opened, requested, missing, revisionMismatches, failed);
                     AddLog(noMatchResult);
                     StyledMessageWindow.ShowMessage("Open All", noMatchResult, this);
                     return;
@@ -438,41 +684,63 @@ namespace NDwgAutoTool
                 for (int i = 0; i < matches.Count; i++)
                 {
                     var match = matches[i];
+                    string kind = GetOpenAllKindLabel(match.Kind);
                     string fileName = System.IO.Path.GetFileName(match.FilePath);
 
                     progress.UpdateProgress(
-                        "Opening drawings...",
+                        "Opening files...",
                         fileName,
                         i + 1,
                         matches.Count);
 
                     try
                     {
-                        var drawing = solidWorksService.OpenDrawing(
-                            swApp,
-                            match.FilePath,
-                            out int errors,
-                            out int warnings);
+                        int errors = 0;
+                        int warnings = 0;
 
-                        if (drawing is null)
+                        SetOpenAllDocumentTypeVisible(swApp, match.Kind);
+
+                        var document = match.Kind switch
+                        {
+                            OpenAllFileKind.Drawing => solidWorksService.OpenDrawing(
+                                swApp,
+                                match.FilePath,
+                                out errors,
+                                out warnings),
+                            OpenAllFileKind.Container => solidWorksService.OpenPart(
+                                swApp,
+                                match.FilePath,
+                                out errors,
+                                out warnings),
+                            OpenAllFileKind.Model => solidWorksService.OpenAssembly(
+                                swApp,
+                                match.FilePath,
+                                out errors,
+                                out warnings),
+                            _ => throw new InvalidOperationException("Unsupported Open All file type.")
+                        };
+
+                        if (document is null)
                             throw new Exception($"SolidWorks did not return a document. Errors: {errors}; Warnings: {warnings}");
 
+                        EnsureOpenAllDocumentVisible(swApp, document, match.FilePath);
+
                         opened++;
-                        AddLog($"Open All: opened {match.DrawingNumber} -> {match.FilePath}");
+                        AddLog($"Open All: opened {kind} {match.Number} -> {match.FilePath}");
 
                         if (errors != 0 || warnings != 0)
-                            AddLog($"Open All: SolidWorks reported errors={errors}, warnings={warnings} for {match.DrawingNumber}.");
+                            AddLog($"Open All: SolidWorks reported errors={errors}, warnings={warnings} for {kind} {match.Number}.");
                     }
                     catch (Exception ex)
                     {
-                        failed.Add($"{match.DrawingNumber}: {ex.Message}");
-                        AddLog($"Open All ERROR: {match.DrawingNumber}: {ex.Message}");
+                        failed.Add($"{kind} {match.Number}: {ex.Message}");
+                        AddLog($"Open All ERROR: {kind} {match.Number}: {ex.Message}");
                     }
 
                     await System.Threading.Tasks.Task.Delay(25);
                 }
 
-                string result = BuildOpenAllResult(opened, drawingNumbers.Count, missing, failed);
+                string result = BuildOpenAllResult(opened, requested, missing, revisionMismatches, failed);
                 AddLog(result);
                 StyledMessageWindow.ShowMessage("Open All", result, this);
             }
@@ -488,10 +756,110 @@ namespace NDwgAutoTool
             }
         }
 
+        private static string GetOpenAllKindLabel(OpenAllFileKind kind)
+        {
+            return kind switch
+            {
+                OpenAllFileKind.Drawing => "Drawing",
+                OpenAllFileKind.Container => "Container",
+                OpenAllFileKind.Model => "Model",
+                _ => "File"
+            };
+        }
+
+        private enum OpenAllFileKind
+        {
+            Drawing,
+            Container,
+            Model
+        }
+
+        private sealed record OpenAllFileMatch(
+            OpenAllFileKind Kind,
+            string Number,
+            string Revision,
+            string FilePath);
+
+        private static int GetOpenAllOpenOrder(OpenAllFileMatch match)
+        {
+            return match.Kind switch
+            {
+                OpenAllFileKind.Container => 0,
+                OpenAllFileKind.Drawing => 1,
+                OpenAllFileKind.Model => 2,
+                _ => 99
+            };
+        }
+
+        private static void SetOpenAllDocumentTypeVisible(SldWorks.ISldWorks swApp, OpenAllFileKind kind)
+        {
+            try
+            {
+                int docType = kind switch
+                {
+                    OpenAllFileKind.Drawing => (int)SwConst.swDocumentTypes_e.swDocDRAWING,
+                    OpenAllFileKind.Container => (int)SwConst.swDocumentTypes_e.swDocPART,
+                    OpenAllFileKind.Model => (int)SwConst.swDocumentTypes_e.swDocASSEMBLY,
+                    _ => 0
+                };
+
+                if (docType != 0)
+                    swApp.DocumentVisible(true, docType);
+            }
+            catch
+            {
+            }
+        }
+
+        private static void EnsureOpenAllDocumentVisible(
+            SldWorks.ISldWorks swApp,
+            SldWorks.ModelDoc2 document,
+            string filePath)
+        {
+            try
+            {
+                document.Visible = true;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                int activationErrors = 0;
+                string title = document.GetTitle();
+
+                if (string.IsNullOrWhiteSpace(title))
+                    title = System.IO.Path.GetFileName(filePath);
+
+                swApp.ActivateDoc3(
+                    title,
+                    true,
+                    (int)SwConst.swRebuildOnActivation_e.swDontRebuildActiveDoc,
+                    ref activationErrors);
+            }
+            catch
+            {
+            }
+        }
+
+        private static string BuildOpenAllRevisionMismatch(
+            string number,
+            IReadOnlyList<OpenAllFileMatch> matches)
+        {
+            var details = matches
+                .OrderBy(match => match.Kind)
+                .Select(match =>
+                    $"{GetOpenAllKindLabel(match.Kind)} rev {match.Revision} ({System.IO.Path.GetFileName(match.FilePath)})");
+
+            return $"{number}: {string.Join("; ", details)}";
+        }
+
         private static string BuildOpenAllResult(
             int opened,
             int requested,
             IReadOnlyList<string> missing,
+            IReadOnlyList<string> revisionMismatches,
             IReadOnlyList<string> failed)
         {
             var result = new System.Text.StringBuilder();
@@ -507,6 +875,17 @@ namespace NDwgAutoTool
 
                 if (missing.Count > 20)
                     result.AppendLine($"...and {missing.Count - 20} more");
+            }
+
+            if (revisionMismatches.Count > 0)
+            {
+                result.AppendLine();
+                result.AppendLine("Revision mismatch:");
+                foreach (string mismatch in revisionMismatches.Take(20))
+                    result.AppendLine(mismatch);
+
+                if (revisionMismatches.Count > 20)
+                    result.AppendLine($"...and {revisionMismatches.Count - 20} more");
             }
 
             if (failed.Count > 0)
@@ -994,6 +1373,19 @@ namespace NDwgAutoTool
 
         private async void CreateForm3ForAllButton_Click(object sender, RoutedEventArgs e)
         {
+            var drawingNumbers = OpenAllDrawingsWindow.AskDrawingNumbersOnly(
+                this,
+                "Create FORM 3 For All",
+                "Create");
+
+            if (drawingNumbers is null || drawingNumbers.Count == 0)
+                return;
+
+            string? outputFolder = AskForm3ForAllOutputFolder();
+
+            if (string.IsNullOrWhiteSpace(outputFolder))
+                return;
+
             SetLastAction("Create FORM 3 For All");
             SetStatus("Working...");
 
@@ -1012,44 +1404,78 @@ namespace NDwgAutoTool
                 if (swApp is null)
                     throw new Exception("Could not connect to SolidWorks.");
 
-                var drawings = GetOpenDrawingDocumentsForBatch(swApp);
+                var fileFinder = new FileFinderService();
+                var drawingMatches = fileFinder.FindDrawingFiles(drawingNumbers, out var missingDrawings);
 
-                if (drawings.Count == 0)
+                foreach (string missingDrawing in missingDrawings)
+                {
+                    failedDrawings.Add($"{missingDrawing}: drawing file not found");
+                    AddLog($"Create FORM 3 For All: missing -> {missingDrawing}");
+                }
+
+                processed = missingDrawings.Count;
+                failed = missingDrawings.Count;
+
+                if (drawingMatches.Count == 0)
                 {
                     StyledMessageWindow.ShowMessage(
                         "Create FORM 3 For All",
-                        "No open drawing documents were found.",
+                        "No matching drawing files were found.",
                         this);
-
                     SetStatus("Ready");
                     return;
                 }
 
-                AddLog($"Create FORM 3 For All: found {drawings.Count} open drawing(s).");
+                AddLog($"Create FORM 3 For All: requested {drawingNumbers.Count} drawing number(s).");
+                AddLog($"Create FORM 3 For All: found {drawingMatches.Count} drawing file(s).");
 
                 var service = new NDwgAutoTool.Services.Form3Service(AddLog);
-                string outputFolder = service.FindForm3OutputFolder();
                 AddLog($"Create FORM 3 For All: output folder -> {outputFolder}");
 
                 progress = new StyledProgressWindow("Create FORM 3 For All", this);
                 progress.Show();
                 await System.Threading.Tasks.Task.Delay(50);
 
-                for (int i = 0; i < drawings.Count; i++)
+                for (int i = 0; i < drawingMatches.Count; i++)
                 {
-                    var drawing = drawings[i];
-                    string drawingPartNo = GetDrawingPartNoFromModel(drawing);
+                    var match = drawingMatches[i];
+                    string drawingPartNo = match.DrawingNumber;
+                    SldWorks.ModelDoc2? drawing = null;
+                    bool openedByBatch = false;
 
                     progress.UpdateProgress(
                         "Creating Form 3 files...",
                         drawingPartNo,
                         i + 1,
-                        drawings.Count);
+                        drawingMatches.Count);
 
-                    AddLog($"Create FORM 3 For All: processing {drawingPartNo}");
+                    AddLog($"Create FORM 3 For All: processing {drawingPartNo} -> {match.FilePath}");
 
                     try
                     {
+                        drawing = solidWorksService.FindOpenDocumentByPath(swApp, match.FilePath);
+
+                        if (drawing == null)
+                        {
+                            drawing = solidWorksService.OpenDrawing(
+                                swApp,
+                                match.FilePath,
+                                out int openErrors,
+                                out int openWarnings);
+
+                            openedByBatch = true;
+
+                            if (drawing == null)
+                                throw new Exception($"SolidWorks did not return a drawing. Errors: {openErrors}; Warnings: {openWarnings}");
+
+                            if (openErrors != 0 || openWarnings != 0)
+                                AddLog($"Create FORM 3 For All: SolidWorks reported errors={openErrors}, warnings={openWarnings} for {drawingPartNo}.");
+                        }
+                        else
+                        {
+                            AddLog($"Create FORM 3 For All: drawing already open -> {drawingPartNo}");
+                        }
+
                         int errors = 0;
 
                         try
@@ -1064,10 +1490,15 @@ namespace NDwgAutoTool
                         {
                         }
 
+                        service.SetTargetDrawing(drawing);
                         string fileName = service.GetDefaultOutputFileName();
                         string outputPath = System.IO.Path.Combine(outputFolder, fileName);
 
-                        service.CreateForm3ToPath(outputPath, null, showSuccessPopup: false);
+                        service.CreateForm3ToPath(
+                            outputPath,
+                            null,
+                            showSuccessPopup: false,
+                            throwOnCancel: true);
 
                         succeeded++;
                         AddLog($"Create FORM 3 For All: success -> {drawingPartNo}");
@@ -1083,6 +1514,23 @@ namespace NDwgAutoTool
                         failed++;
                         failedDrawings.Add(drawingPartNo);
                         AddLog($"Create FORM 3 For All: FAILED -> {drawingPartNo} | {ex.Message}");
+                    }
+                    finally
+                    {
+                        service.SetTargetDrawing(null);
+
+                        if (openedByBatch && drawing != null)
+                        {
+                            try
+                            {
+                                solidWorksService.CloseDocumentWithoutSaving(swApp, drawing);
+                                AddLog($"Create FORM 3 For All: closed without saving -> {drawingPartNo}");
+                            }
+                            catch (Exception ex)
+                            {
+                                AddLog($"Create FORM 3 For All: failed to close {drawingPartNo} | {ex.Message}");
+                            }
+                        }
                     }
 
                     processed++;
@@ -1119,10 +1567,23 @@ namespace NDwgAutoTool
             SetStatus("Ready");
         }
 
+        private string? AskForm3ForAllOutputFolder()
+        {
+            var dialog = new OpenFolderDialog
+            {
+                Title = "Select folder for FORM 3 output",
+                Multiselect = false
+            };
+
+            return dialog.ShowDialog(this) == true
+                ? dialog.FolderName
+                : null;
+        }
+
 
         private async void CreatePdfForAllButton_Click(object sender, RoutedEventArgs e)
         {
-            SetLastAction("Create PDF For All");
+            SetLastAction("Create Check PDF For All");
             SetStatus("Working...");
 
             var failedDrawings = new List<string>();
@@ -1146,7 +1607,7 @@ namespace NDwgAutoTool
                 if (drawings.Count == 0)
                 {
                     StyledMessageWindow.ShowMessage(
-                        "Create PDF For All",
+                        "Create Check PDF For All",
                         "No open drawing documents were found.",
                         this);
 
@@ -1154,9 +1615,9 @@ namespace NDwgAutoTool
                     return;
                 }
 
-                AddLog($"Create PDF For All: found {drawings.Count} open drawing(s).");
+                AddLog($"Create Check PDF For All: found {drawings.Count} open drawing(s).");
 
-                progress = new StyledProgressWindow("Create PDF For All", this);
+                progress = new StyledProgressWindow("Create Check PDF For All", this);
                 progress.Show();
                 await System.Threading.Tasks.Task.Delay(50);
 
@@ -1182,7 +1643,7 @@ namespace NDwgAutoTool
                         i + 1,
                         drawings.Count);
 
-                    AddLog($"Create PDF For All: processing {drawingName}");
+                    AddLog($"Create Check PDF For All: processing {drawingName}");
 
                     try
                     {
@@ -1203,13 +1664,192 @@ namespace NDwgAutoTool
                         pdfService.CreatePdfFromDrawing(drawing);
 
                         succeeded++;
-                        AddLog($"Create PDF For All: success -> {drawingName}");
+                        AddLog($"Create Check PDF For All: success -> {drawingName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        failedDrawings.Add(drawingName);
+                        AddLog($"Create Check PDF For All: FAILED -> {drawingName} | {ex.Message}");
+                    }
+
+                    processed++;
+                    await System.Threading.Tasks.Task.Delay(50);
+                }
+
+                progress.MarkComplete("Create Check PDF For All completed.", processed);
+                await System.Threading.Tasks.Task.Delay(250);
+                progress.Close();
+
+                BatchResultWindow.ShowResult(
+                    "Create Check PDF For All",
+                    processed,
+                    succeeded,
+                    failed,
+                    failedDrawings,
+                    this);
+            }
+            catch (Exception ex)
+            {
+                AddLog("ERROR: " + ex);
+
+                if (progress != null)
+                {
+                    try { progress.Close(); } catch { }
+                }
+
+                StyledMessageWindow.ShowMessage(
+                    "Create Check PDF For All Error",
+                    ex.Message,
+                    this);
+            }
+
+            SetStatus("Ready");
+        }
+
+        private async void PdfNoCheckButton_Click(object sender, RoutedEventArgs e)
+        {
+            var drawingNumbers = OpenAllDrawingsWindow.AskDrawingNumbersOnly(
+                this,
+                "Create PDF For All",
+                "Create");
+
+            if (drawingNumbers is null || drawingNumbers.Count == 0)
+                return;
+
+            string? outputFolder = AskPdfNoCheckOutputFolder();
+
+            if (string.IsNullOrWhiteSpace(outputFolder))
+                return;
+
+            SetLastAction("Create PDF For All");
+            SetStatus("Working...");
+
+            var failedDrawings = new List<string>();
+            int processed = 0;
+            int succeeded = 0;
+            int failed = 0;
+
+            StyledProgressWindow? progress = null;
+
+            try
+            {
+                var fileFinder = new FileFinderService();
+                var drawingMatches = fileFinder.FindDrawingFiles(drawingNumbers, out var missingDrawings);
+
+                foreach (string missingDrawing in missingDrawings)
+                {
+                    failedDrawings.Add($"{missingDrawing}: drawing file not found");
+                    AddLog($"Create PDF For All: missing -> {missingDrawing}");
+                }
+
+                processed = missingDrawings.Count;
+                failed = missingDrawings.Count;
+
+                if (drawingMatches.Count == 0)
+                {
+                    StyledMessageWindow.ShowMessage(
+                        "Create PDF For All",
+                        "No matching drawing files were found.",
+                        this);
+                    SetStatus("Ready");
+                    return;
+                }
+
+                var pdfService = new NDwgAutoTool.Services.PdfService(AddLog);
+                var solidWorksService = new SolidWorksService();
+                var swApp = solidWorksService.GetApplication();
+
+                if (swApp == null)
+                    throw new Exception("Could not connect to SolidWorks.");
+
+                AddLog($"Create PDF For All: requested {drawingNumbers.Count} drawing number(s).");
+                AddLog($"Create PDF For All: found {drawingMatches.Count} drawing file(s).");
+                AddLog($"Create PDF For All: output folder -> {outputFolder}");
+
+                progress = new StyledProgressWindow("Create PDF For All", this);
+                progress.Show();
+                await System.Threading.Tasks.Task.Delay(50);
+
+                for (int i = 0; i < drawingMatches.Count; i++)
+                {
+                    var match = drawingMatches[i];
+                    string drawingName = System.IO.Path.GetFileNameWithoutExtension(match.FilePath);
+                    SldWorks.ModelDoc2? drawing = null;
+                    bool openedByBatch = false;
+
+                    progress.UpdateProgress(
+                        "Creating PDFs...",
+                        drawingName,
+                        i + 1,
+                        drawingMatches.Count);
+
+                    AddLog($"Create PDF For All: processing {drawingName} -> {match.FilePath}");
+
+                    try
+                    {
+                        drawing = solidWorksService.FindOpenDocumentByPath(swApp, match.FilePath);
+
+                        if (drawing == null)
+                        {
+                            drawing = solidWorksService.OpenDrawing(
+                                swApp,
+                                match.FilePath,
+                                out int openErrors,
+                                out int openWarnings);
+
+                            openedByBatch = true;
+
+                            if (drawing == null)
+                                throw new Exception($"SolidWorks did not return a drawing. Errors: {openErrors}; Warnings: {openWarnings}");
+
+                            if (openErrors != 0 || openWarnings != 0)
+                                AddLog($"Create PDF For All: SolidWorks reported errors={openErrors}, warnings={openWarnings} for {drawingName}.");
+                        }
+                        else
+                        {
+                            AddLog($"Create PDF For All: drawing already open -> {drawingName}");
+                        }
+
+                        int errors = 0;
+
+                        try
+                        {
+                            swApp.ActivateDoc3(
+                                drawing.GetTitle(),
+                                true,
+                                (int)swRebuildOnActivation_e.swDontRebuildActiveDoc,
+                                ref errors);
+                        }
+                        catch
+                        {
+                        }
+
+                        string pdfPath = pdfService.CreatePdfNoCheckFromDrawing(drawing, outputFolder);
+
+                        succeeded++;
+                        AddLog($"Create PDF For All: success -> {pdfPath}");
                     }
                     catch (Exception ex)
                     {
                         failed++;
                         failedDrawings.Add(drawingName);
                         AddLog($"Create PDF For All: FAILED -> {drawingName} | {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (openedByBatch && drawing != null)
+                        {
+                            try
+                            {
+                                solidWorksService.CloseDocumentWithoutSaving(swApp, drawing);
+                                AddLog($"Create PDF For All: closed without saving -> {drawingName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                AddLog($"Create PDF For All: failed to close {drawingName} | {ex.Message}");
+                            }
+                        }
                     }
 
                     processed++;
@@ -1246,170 +1886,75 @@ namespace NDwgAutoTool
             SetStatus("Ready");
         }
 
+        private string? AskPdfNoCheckOutputFolder()
+        {
+            var dialog = new OpenFolderDialog
+            {
+                Title = "Select folder for PDF output",
+                Multiselect = false
+            };
+
+            return dialog.ShowDialog(this) == true
+                ? dialog.FolderName
+                : null;
+        }
+
         private async void CheckDwgForAllButton_Click(object sender, RoutedEventArgs e)
         {
-            SetLastAction("CheckDWG For All");
-            SetStatus("Working...");
+            var drawingNumbers = OpenAllDrawingsWindow.AskDrawingNumbersOnly(
+                this,
+                "CheckDWG For All",
+                "Check");
 
-            var failedDrawings = new List<string>();
-            var allReports = new List<(string DrawingPartNo, List<NDwgAutoTool.Models.CheckDwgReportRow> Rows)>();
+            if (drawingNumbers is null || drawingNumbers.Count == 0)
+                return;
 
-            int processed = 0;
-            int succeeded = 0;
-            int failed = 0;
+            await RunCheckDwgForDrawingNumbers(drawingNumbers);
+        }
+        private void PromptToOpenExcelReport(string title, string outputPath, bool allChecksCorrect)
+        {
+            string question = allChecksCorrect
+                ? "All checks passed. Open the generated Excel report?"
+                : "Some checks need attention. Open the generated Excel report?";
 
-            StyledProgressWindow? progress = null;
+            bool openReport = StyledConfirmWindow.ShowConfirm(
+                title,
+                question,
+                outputPath,
+                this);
+
+            if (!openReport)
+                return;
 
             try
             {
-                var fileFinder = new FileFinderService();
-
-                var notesFile = fileFinder.FindNotesFile();
-                if (string.IsNullOrWhiteSpace(notesFile))
-                    throw new Exception("N-DWG Auto Tool notes file not found.");
-
-                AddLog($"Notes file path: {notesFile}");
-
-                var workListFile = fileFinder.FindWorkListFile();
-                if (string.IsNullOrWhiteSpace(workListFile))
-                    throw new Exception("WORK_LIST file not found.");
-
-                AddLog($"WORK_LIST file path: {workListFile}");
-
-                var bomFile = fileFinder.FindBomFile();
-                if (string.IsNullOrWhiteSpace(bomFile))
-                    throw new Exception("BOM file not found.");
-
-                AddLog($"BOM file path: {bomFile}");
-
-                var solidWorksService = new SolidWorksService();
-                var swApp = solidWorksService.GetApplication();
-
-                if (swApp is null)
-                    throw new Exception("Could not connect to SolidWorks.");
-
-                var drawings = GetOpenDrawingDocumentsForBatch(swApp);
-
-                if (drawings.Count == 0)
+                Process.Start(new ProcessStartInfo(outputPath)
                 {
-                    StyledMessageWindow.ShowMessage(
-                        "CheckDWG For All",
-                        "No open drawing documents were found.",
-                        this);
+                    UseShellExecute = true
+                });
 
-                    SetStatus("Ready");
-                    return;
-                }
-
-                AddLog($"CheckDWG For All: found {drawings.Count} open drawing(s).");
-
-                progress = new StyledProgressWindow("CheckDWG For All", this);
-                progress.Show();
-                await System.Threading.Tasks.Task.Delay(50);
-
-                for (int i = 0; i < drawings.Count; i++)
-                {
-                    var drawing = drawings[i];
-                    string drawingPartNo = GetDrawingPartNoFromModel(drawing);
-
-                    progress.UpdateProgress(
-                        "Checking drawings...",
-                        drawingPartNo,
-                        i + 1,
-                        drawings.Count);
-
-                    AddLog($"CheckDWG For All: processing {drawingPartNo}");
-
-                    try
-                    {
-                        int errors = 0;
-
-                        try
-                        {
-                            swApp.ActivateDoc3(
-                                drawing.GetTitle(),
-                                true,
-                                (int)SwConst.swRebuildOnActivation_e.swDontRebuildActiveDoc,
-                                ref errors);
-                        }
-                        catch
-                        {
-                        }
-
-                        var reportRows = BuildCheckDwgReportRowsForDrawing(
-                            drawing,
-                            notesFile,
-                            workListFile,
-                            bomFile,
-                            solidWorksService);
-
-                        allReports.Add((drawingPartNo, reportRows));
-
-                        succeeded++;
-                        AddLog($"CheckDWG For All: success -> {drawingPartNo}");
-                    }
-                    catch (Exception ex)
-                    {
-                        failed++;
-                        failedDrawings.Add(drawingPartNo);
-                        AddLog($"CheckDWG For All: FAILED -> {drawingPartNo} | {ex.Message}");
-                    }
-
-                    processed++;
-                    await System.Threading.Tasks.Task.Delay(50);
-                }
-
-                progress.MarkComplete("CheckDWG For All completed.", processed);
-                await System.Threading.Tasks.Task.Delay(250);
-                progress.Close();
-
-                var saveDialog = new SaveFileDialog
-                {
-                    Title = "Save CheckDWG For All Report",
-                    FileName = "CheckDWG_ForAll.xlsx",
-                    Filter = "Excel Workbook (*.xlsx)|*.xlsx",
-                    DefaultExt = ".xlsx",
-                    AddExtension = true
-                };
-
-                bool? saveResult = saveDialog.ShowDialog();
-
-                if (saveResult != true || string.IsNullOrWhiteSpace(saveDialog.FileName))
-                {
-                    AddLog("CheckDWG For All report save was cancelled.");
-                    SetStatus("Ready");
-                    return;
-                }
-
-                string outputPath = saveDialog.FileName;
-
-                WriteCheckDwgForAllExcelReport(outputPath, allReports);
-                AddLog($"CheckDWG For All report created -> {outputPath}");
-
-                BatchResultWindow.ShowResult(
-                    "CheckDWG For All",
-                    processed,
-                    succeeded,
-                    failed,
-                    failedDrawings,
-                    this);
+                AddLog($"{title}: opened Excel report -> {outputPath}");
             }
             catch (Exception ex)
             {
-                AddLog("ERROR: " + ex);
-
-                if (progress != null)
-                {
-                    try { progress.Close(); } catch { }
-                }
-
+                AddLog($"{title}: failed to open Excel report -> {ex.Message}");
                 StyledMessageWindow.ShowMessage(
-                    "CheckDWG For All Error",
-                    ex.Message,
+                    $"{title} Error",
+                    $"Report was created, but could not be opened.\n\n{ex.Message}",
                     this);
             }
+        }
 
-            SetStatus("Ready");
+        private static bool AllCheckReportsAreCorrect(
+            IEnumerable<(string DrawingPartNo, List<NDwgAutoTool.Models.CheckDwgReportRow> Rows)> reports)
+        {
+            return reports.Any() && reports.All(report => AllCheckRowsAreCorrect(report.Rows));
+        }
+
+        private static bool AllCheckRowsAreCorrect(IEnumerable<NDwgAutoTool.Models.CheckDwgReportRow> rows)
+        {
+            return rows.Any() &&
+                   rows.All(row => row.Result.Equals("Correct", StringComparison.OrdinalIgnoreCase));
         }
 
         private async void GenerateNotesForAllButton_Click(object sender, RoutedEventArgs e)
@@ -1775,6 +2320,8 @@ namespace NDwgAutoTool
         {
             _isCompactMode = true;
             SizeToContent = SizeToContent.Manual;
+            MinWidth = _compactButtonsHorizontal ? CompactHorizontalMinWidth : CompactWindowWidth;
+            MinHeight = _compactButtonsHorizontal ? CompactHorizontalMinHeight : CompactWindowHeight;
 
             MiddlePanel.Visibility = Visibility.Collapsed;
             RightPanel.Visibility = Visibility.Collapsed;
@@ -1784,17 +2331,22 @@ namespace NDwgAutoTool
             RightSpacerColumn.Width = new GridLength(0);
             RightColumn.Width = new GridLength(0);
 
-            LeftColumn.Width = new GridLength(LeftPanelWidth);
+            LeftColumn.Width = new GridLength(_compactButtonsHorizontal
+                ? CompactHorizontalWindowWidth - 16
+                : LeftPanelWidth);
 
             ToggleLayoutButton.Content = "SHOW MORE";
 
-            Width = CompactWindowWidth;
-            Height = CompactWindowHeight;
+            Width = _compactButtonsHorizontal ? CompactHorizontalWindowWidth : CompactWindowWidth;
+            Height = _compactButtonsHorizontal ? CompactHorizontalWindowHeight : CompactWindowHeight;
+            UpdateResponsiveLayout();
         }
 
         private void ApplyExpandedLayout()
         {
             _isCompactMode = false;
+            MinWidth = ExpandedWindowWidth;
+            MinHeight = ExpandedWindowHeight;
 
             MiddlePanel.Visibility = Visibility.Visible;
             RightPanel.Visibility = Visibility.Visible;
@@ -1810,6 +2362,258 @@ namespace NDwgAutoTool
             SizeToContent = SizeToContent.Manual;
             Width = ExpandedWindowWidth;
             Height = ExpandedWindowHeight;
+            UpdateResponsiveLayout();
+        }
+
+        private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateResponsiveLayout();
+        }
+
+        private void UpdateResponsiveLayout()
+        {
+            if (LeftColumn == null || RightColumn == null || ToggleLayoutButton == null)
+                return;
+
+            ApplyWindowDensity();
+
+            double currentWidth = ActualWidth > 0 ? ActualWidth : Width;
+            double currentHeight = ActualHeight > 0 ? ActualHeight : Height;
+
+            if (_isCompactMode)
+            {
+                double compactWidthProgress = Clamp((currentWidth - CompactWindowWidth) / 320d, 0, 1);
+                double compactHeightProgress = Clamp((currentHeight - CompactWindowHeight) / 420d, 0, 1);
+                double compactScale = Math.Max(compactWidthProgress, compactHeightProgress * 0.85);
+
+                double compactPanelWidth = _compactButtonsHorizontal
+                    ? Math.Max(LeftPanelWidth, currentWidth - 16)
+                    : LeftPanelWidth + ((MaxSidePanelWidth - LeftPanelWidth) * compactWidthProgress);
+                LeftColumn.Width = new GridLength(compactPanelWidth);
+
+                double compactButtonHeight = _compactButtonsHorizontal
+                    ? CompactHorizontalButtonHeight
+                    : ActionButtonMinHeight + ((ActionButtonMaxHeight - ActionButtonMinHeight) * compactScale);
+
+                double compactButtonFontSize = _compactButtonsHorizontal
+                    ? CompactHorizontalButtonFontSize
+                    : ActionButtonMinFontSize + ((ActionButtonMaxFontSize - ActionButtonMinFontSize) * compactScale);
+
+                SetToolButtonMetrics(compactButtonHeight, compactButtonFontSize);
+                ApplyLeftCommandFlowLayout(compactPanelWidth);
+                return;
+            }
+
+            double widthProgress = Clamp((currentWidth - ExpandedWindowWidth) / 1000d, 0, 1);
+            double heightProgress = Clamp((currentHeight - ExpandedWindowHeight) / 520d, 0, 1);
+            double scale = Math.Max(widthProgress, heightProgress * 0.85);
+
+            double leftPanelWidth = LeftPanelWidth + ((MaxSidePanelWidth - LeftPanelWidth) * widthProgress);
+            double rightPanelWidth = RightPanelWidth + ((MaxSidePanelWidth - RightPanelWidth) * widthProgress);
+
+            LeftColumn.Width = new GridLength(leftPanelWidth);
+            RightColumn.Width = new GridLength(rightPanelWidth);
+
+            double buttonHeight = ActionButtonMinHeight + ((ActionButtonMaxHeight - ActionButtonMinHeight) * scale);
+            double buttonFontSize = ActionButtonMinFontSize + ((ActionButtonMaxFontSize - ActionButtonMinFontSize) * scale);
+            SetToolButtonMetrics(buttonHeight, buttonFontSize);
+            ApplyLeftCommandFlowLayout(leftPanelWidth);
+
+            if (NetworkRootPathTextBox != null)
+            {
+                NetworkRootPathTextBox.Height = 28 + (4 * scale);
+                NetworkRootPathTextBox.FontSize = 13 + scale;
+            }
+
+            if (LogTextBox != null)
+                LogTextBox.FontSize = 13 + scale;
+        }
+
+        private void ApplyWindowDensity()
+        {
+            bool compactHorizontal = _isCompactMode && _compactButtonsHorizontal;
+
+            if (TitleBarRow != null)
+                TitleBarRow.Height = new GridLength(compactHorizontal ? 28 : 40);
+
+            if (TitleBarBorder != null)
+                TitleBarBorder.Padding = compactHorizontal
+                    ? new Thickness(8, 3, 8, 3)
+                    : new Thickness(12, 8, 12, 8);
+
+            if (MainContentGrid != null)
+                MainContentGrid.Margin = compactHorizontal
+                    ? new Thickness(4)
+                    : new Thickness(8);
+
+            if (LeftPanel != null)
+                LeftPanel.Padding = compactHorizontal
+                    ? new Thickness(5)
+                    : new Thickness(9);
+
+            if (LeftPanelScrollViewer != null)
+                LeftPanelScrollViewer.VerticalScrollBarVisibility = compactHorizontal
+                    ? ScrollBarVisibility.Disabled
+                    : ScrollBarVisibility.Auto;
+
+            if (AppTitleTextBlock != null)
+                AppTitleTextBlock.FontSize = compactHorizontal ? 12 : 15;
+
+            if (AppVersionTextBlock != null)
+            {
+                AppVersionTextBlock.FontSize = compactHorizontal ? 10 : 13;
+                AppVersionTextBlock.Margin = compactHorizontal
+                    ? new Thickness(3, 1, 0, 0)
+                    : new Thickness(4, 2, 0, 0);
+            }
+
+            if (TitleBarButtonsPanel != null)
+            {
+                TitleBarButtonsPanel.Margin = compactHorizontal
+                    ? new Thickness(0)
+                    : new Thickness(0, -3, 0, 0);
+
+                foreach (var button in TitleBarButtonsPanel.Children.OfType<Button>())
+                {
+                    button.Width = compactHorizontal ? 20 : 26;
+                    button.Height = compactHorizontal ? 20 : 26;
+                    button.FontSize = compactHorizontal ? 10 : 13;
+                    button.Margin = compactHorizontal
+                        ? new Thickness(3, 0, 0, 0)
+                        : new Thickness(4, 0, 0, 0);
+                }
+            }
+        }
+
+        private void ApplyLeftCommandFlowLayout(double panelWidth)
+        {
+            if (LeftCommandFlowPanel == null ||
+                ActiveDrawingHeaderTextBlock == null ||
+                CompactOrientationToggleButton == null)
+            {
+                return;
+            }
+
+            bool useHorizontalFlow = _isCompactMode && _compactButtonsHorizontal;
+            double contentWidth = Math.Max(
+                90,
+                panelWidth - LeftPanel.Padding.Left - LeftPanel.Padding.Right - 2);
+
+            LeftCommandFlowPanel.Orientation = useHorizontalFlow
+                ? Orientation.Horizontal
+                : Orientation.Vertical;
+
+            ActiveDrawingHeaderTextBlock.Visibility = _isCompactMode
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            CompactOrientationToggleButton.Visibility = _isCompactMode
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            CompactOrientationToggleButton.Content = _compactButtonsHorizontal
+                ? "Vertical"
+                : "Horizontal";
+
+            CompactOrientationToggleButton.HorizontalContentAlignment = useHorizontalFlow
+                ? HorizontalAlignment.Center
+                : HorizontalAlignment.Left;
+
+            ActiveDrawingHeaderTextBlock.Width = contentWidth;
+            ActiveDrawingHeaderTextBlock.Margin = new Thickness(0, 0, 0, 6);
+
+            double buttonWidth = useHorizontalFlow
+                ? CalculateCompactHorizontalButtonWidth(contentWidth)
+                : contentWidth;
+
+            foreach (var button in GetPanelButtons(LeftPanel))
+            {
+                button.Width = buttonWidth;
+                button.MinWidth = useHorizontalFlow ? buttonWidth : 90;
+
+                if (useHorizontalFlow)
+                {
+                    button.Margin = new Thickness(0, 0, CompactHorizontalButtonGap, CompactHorizontalButtonGap);
+                    continue;
+                }
+
+                button.Margin = new Thickness(0, 0, 0, 3);
+
+                if (ReferenceEquals(button, ToggleLayoutButton) ||
+                    ReferenceEquals(button, OpenAllButton))
+                {
+                    button.Margin = new Thickness(0, 0, 0, 9);
+                }
+                else if (ReferenceEquals(button, CompactOrientationToggleButton))
+                {
+                    button.Margin = new Thickness(0, 0, 0, 6);
+                }
+                else if (string.Equals(button.Content?.ToString(), "Close All", StringComparison.Ordinal))
+                {
+                    button.Margin = new Thickness(0);
+                }
+            }
+        }
+
+        private static double CalculateCompactHorizontalButtonWidth(double contentWidth)
+        {
+            int columns =
+                contentWidth >= 1080 ? 14 :
+                contentWidth >= 820 ? 10 :
+                contentWidth >= 680 ? 8 :
+                7;
+
+            double usableWidth = contentWidth - (CompactHorizontalButtonGap * (columns - 1));
+            double buttonWidth = Math.Floor(usableWidth / columns);
+            return Clamp(buttonWidth, 68, 90);
+        }
+
+        private void SetToolButtonMetrics(double height, double fontSize)
+        {
+            foreach (var button in GetPanelButtons(LeftPanel).Concat(GetPanelButtons(RightPanel)))
+            {
+                button.Height = height;
+                button.FontSize = fontSize;
+            }
+        }
+
+        private static IEnumerable<Button> GetPanelButtons(DependencyObject root)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+
+                if (child is Button button)
+                    yield return button;
+
+                foreach (var nestedButton in GetPanelButtons(child))
+                    yield return nestedButton;
+            }
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min)
+                return min;
+
+            if (value > max)
+                return max;
+
+            return value;
+        }
+
+        private void CompactOrientationToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _compactButtonsHorizontal = !_compactButtonsHorizontal;
+            SaveCompactViewPreferences();
+
+            if (_isCompactMode)
+            {
+                ApplyCompactLayout();
+                return;
+            }
+
+            UpdateResponsiveLayout();
         }
 
         private void ToggleLayoutButton_Click(object sender, RoutedEventArgs e)
@@ -2316,6 +3120,711 @@ namespace NDwgAutoTool
             return rows;
         }
 
+        private List<NDwgAutoTool.Models.CheckDwgReportRow> BuildFarSideViewNoteReportRows(
+            List<NDwgAutoTool.Models.DrawingNoteInfo> notes)
+        {
+            var rows = new List<NDwgAutoTool.Models.CheckDwgReportRow>();
+
+            var exactNote = FindExactFarSideViewNote(notes);
+
+            if (exactNote != null)
+            {
+                var issues = GetFarSideViewNoteFormattingIssues(exactNote);
+
+                rows.Add(new NDwgAutoTool.Models.CheckDwgReportRow
+                {
+                    CheckItem = "Far Side View Note",
+                    Result = issues.Count == 0 ? "Correct" : "Issue Found",
+                    Details = issues.Count == 0
+                        ? $"Required note is present, centered, and Japanese text is underlined: {FormatFarSideViewExpectedText()}."
+                        : $"Required note text is correct, but {string.Join(" ", issues)}"
+                });
+
+                return rows;
+            }
+
+            var relatedNote = FindRelatedFarSideViewNote(notes);
+
+            if (relatedNote != null)
+            {
+                var messages = new List<string>
+                {
+                    $"A Far Side View note was found, but the text does not match. Expected: {FormatFarSideViewExpectedText()}. Found: {FormatNoteTextForReport(relatedNote.Text)}."
+                };
+
+                if (!IsNoteTextCentered(relatedNote))
+                    messages.Add($"Text justification is not Center. Found: {GetNoteTextJustificationName(relatedNote)}.");
+
+                if (!IsFarSideViewJapaneseTextUnderlined(relatedNote))
+                    messages.Add("Japanese text is not underlined.");
+
+                rows.Add(new NDwgAutoTool.Models.CheckDwgReportRow
+                {
+                    CheckItem = "Far Side View Note",
+                    Result = "Issue Found",
+                    Details = string.Join(" ", messages)
+                });
+
+                return rows;
+            }
+
+            rows.Add(new NDwgAutoTool.Models.CheckDwgReportRow
+            {
+                CheckItem = "Far Side View Note",
+                Result = "Issue Found",
+                Details = $"Required note was not found: {FormatFarSideViewExpectedText()}."
+            });
+
+            return rows;
+        }
+
+        private static NDwgAutoTool.Models.DrawingNoteInfo? FindExactFarSideViewNote(
+            IEnumerable<NDwgAutoTool.Models.DrawingNoteInfo> notes)
+        {
+            return notes.FirstOrDefault(NoteHasFarSideViewText);
+        }
+
+        private static NDwgAutoTool.Models.DrawingNoteInfo? FindRelatedFarSideViewNote(
+            IEnumerable<NDwgAutoTool.Models.DrawingNoteInfo> notes)
+        {
+            return notes.FirstOrDefault(note =>
+                !NoteHasFarSideViewText(note) &&
+                IsRelatedFarSideViewNoteText(note.Text));
+        }
+
+        private static bool NoteHasFarSideViewText(NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            var lines = NormalizeNoteLines(note.Text);
+
+            for (int i = 0; i < lines.Count - 1; i++)
+            {
+                if (lines[i].Equals(FarSideViewJapaneseText, StringComparison.OrdinalIgnoreCase) &&
+                    lines[i + 1].Equals(FarSideViewEnglishText, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsRelatedFarSideViewNoteText(string text)
+        {
+            string normalized = string.Join(" ", NormalizeNoteLines(text));
+
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+
+            string upper = normalized.ToUpperInvariant();
+
+            return normalized.Contains(FarSideViewJapaneseText, StringComparison.OrdinalIgnoreCase) ||
+                   normalized.Contains("反対面", StringComparison.OrdinalIgnoreCase) ||
+                   upper.Contains("FAR SIDE") ||
+                   upper.Contains("FAR SIDE VIEW") ||
+                   (upper.Contains("FAR") && upper.Contains("SIDE") && upper.Contains("VIEW"));
+        }
+
+        private static List<string> NormalizeNoteLines(string text)
+        {
+            return (text ?? "")
+                .Replace("\r\n", "\n")
+                .Replace('\r', '\n')
+                .Split('\n')
+                .Select(line => StripSolidWorksTextTags(line).Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToList();
+        }
+
+        private static string StripSolidWorksTextTags(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return "";
+
+            return System.Text.RegularExpressions.Regex.Replace(
+                text,
+                "<FONT[^>]*>",
+                "",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
+        private static bool IsNoteTextCentered(NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            try
+            {
+                return note.NoteObject != null &&
+                       note.NoteObject.GetTextJustification() == (int)swTextJustification_e.swTextJustificationCenter;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string GetNoteTextJustificationName(NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            try
+            {
+                if (note.NoteObject == null)
+                    return "Unknown";
+
+                int justification = note.NoteObject.GetTextJustification();
+
+                return justification switch
+                {
+                    (int)swTextJustification_e.swTextJustificationCenter => "Center",
+                    (int)swTextJustification_e.swTextJustificationLeft => "Left",
+                    (int)swTextJustification_e.swTextJustificationRight => "Right",
+                    (int)swTextJustification_e.swTextJustificationNone => "None",
+                    _ => $"Unknown ({justification})"
+                };
+            }
+            catch
+            {
+                return "Unknown";
+            }
+        }
+
+        private static List<string> GetFarSideViewNoteFormattingIssues(
+            NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            var issues = new List<string>();
+
+            if (!IsNoteTextCentered(note))
+                issues.Add($"Text justification is not Center. Found: {GetNoteTextJustificationName(note)}.");
+
+            if (!IsFarSideViewJapaneseTextUnderlined(note))
+                issues.Add("Japanese text is not underlined.");
+
+            return issues;
+        }
+
+        private static bool IsFarSideViewNoteFormattingCorrect(
+            NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            return IsFarSideViewJapaneseTextUnderlined(note);
+        }
+
+        private static bool IsFarSideViewParagraphSpacingCorrect(
+            NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            try
+            {
+                var paragraphs = note.AnnotationObject?.GetParagraphs() as SldWorks.Paragraphs;
+                if (paragraphs == null)
+                    return false;
+
+                int count = Math.Max(1, paragraphs.Count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    paragraphs.CurrentParagraph = i;
+
+                    if (!paragraphs.GetFormatting(out double paragraphSpacing, out _))
+                        return false;
+
+                    if (Math.Abs(paragraphSpacing - FarSideViewParagraphSpacing) > FarSideViewParagraphSpacingTolerance)
+                        return false;
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsFarSideViewJapaneseTextUnderlined(
+            NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            try
+            {
+                var paragraphs = note.AnnotationObject?.GetParagraphs() as SldWorks.Paragraphs;
+                if (paragraphs == null)
+                    return false;
+
+                int count = Math.Max(1, paragraphs.Count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    paragraphs.CurrentParagraph = i;
+                    int segmentCount = paragraphs.GetTextSegmentCount();
+
+                    for (int segment = 0; segment < segmentCount; segment++)
+                    {
+                        string segmentText = StripSolidWorksTextTags(paragraphs.GetTextSegmentText(segment) ?? "");
+
+                        if (!segmentText.Contains(FarSideViewJapaneseText, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var textFormat = paragraphs.GetTextSegmentFormat(segment) as SldWorks.TextFormat;
+                        return textFormat?.Underline == true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private static string FormatFarSideViewExpectedText()
+        {
+            return $"{FarSideViewJapaneseText} / {FarSideViewEnglishText}";
+        }
+
+        private static string FormatNoteTextForReport(string text)
+        {
+            var lines = NormalizeNoteLines(text);
+
+            if (lines.Count == 0)
+                return "<empty>";
+
+            return string.Join(" / ", lines);
+        }
+
+        private string EnsureFarSideViewNoteForDrawing(
+            SldWorks.ModelDoc2 activeDoc,
+            SolidWorksService solidWorksService,
+            SldWorks.View? activeTargetView)
+        {
+            var notes = solidWorksService.GetAllNotesOnActiveSheet(activeDoc);
+            var drawing = activeDoc as SldWorks.DrawingDoc;
+
+            if (drawing == null)
+                throw new Exception("Active SolidWorks document is not a drawing.");
+
+            var targetView = activeTargetView ?? GetActiveUserDrawingView(drawing);
+            var targetPosition = GetFarSideViewNoteCreatePosition(drawing, targetView);
+            var candidates = notes
+                .Where(note => NoteHasFarSideViewText(note) || IsRelatedFarSideViewNoteText(note.Text))
+                .ToList();
+
+            if (targetView != null)
+            {
+                string targetViewName = targetView.Name ?? "";
+                var notesOutsideTargetView = candidates
+                    .Where(note => !NoteBelongsToView(note, targetViewName))
+                    .ToList();
+
+                foreach (var note in notesOutsideTargetView)
+                    DeleteFarSideViewNote(activeDoc, note);
+
+                candidates = candidates
+                    .Where(note => NoteBelongsToView(note, targetViewName))
+                    .ToList();
+            }
+
+            var targetNote = FindBestFarSideViewNote(candidates, targetPosition.X, targetPosition.Y);
+
+            if (targetNote != null)
+            {
+                bool noteTextIsExact = NoteHasFarSideViewText(targetNote);
+                bool noteIsCentered = IsNoteTextCentered(targetNote);
+                bool noteFormattingIsCorrect = IsFarSideViewNoteFormattingCorrect(targetNote);
+
+                if (noteTextIsExact && noteIsCentered && noteFormattingIsCorrect && IsFarSideViewNoteVisiblyUsable(targetNote))
+                    return "Far Side View note is already correct.";
+
+                if (noteTextIsExact && noteIsCentered && IsProbablyInvisibleSheetNote(targetNote, drawing))
+                {
+                    var createView = RequireActiveFarSideViewTarget(targetView);
+                    var createPosition = GetFarSideViewNoteCreatePosition(drawing, createView);
+
+                    DeleteFarSideViewNote(activeDoc, targetNote);
+                    CreateFarSideViewNoteInView(activeDoc, drawing, createView, createPosition.X, createPosition.Y);
+                    return $"Far Side View note was recreated in active view '{createView.Name}' because the existing note was not visible.";
+                }
+
+                FixExistingFarSideViewNote(activeDoc, targetNote);
+
+                if (!noteTextIsExact && !noteIsCentered)
+                    return "Far Side View note text and centering were fixed.";
+
+                if (!noteTextIsExact)
+                    return "Far Side View note text was fixed.";
+
+                if (!noteIsCentered)
+                    return "Far Side View note centering was fixed.";
+
+                if (!noteFormattingIsCorrect)
+                    return "Far Side View note formatting was fixed.";
+
+                return "Far Side View note was refreshed.";
+            }
+
+            var requiredTargetView = RequireActiveFarSideViewTarget(targetView);
+            var requiredTargetPosition = GetFarSideViewNoteCreatePosition(drawing, requiredTargetView);
+
+            CreateFarSideViewNoteInView(activeDoc, drawing, requiredTargetView, requiredTargetPosition.X, requiredTargetPosition.Y);
+            return $"Far Side View note was missing and has been created in active view '{requiredTargetView.Name}'.";
+        }
+
+        private static SldWorks.View? GetActiveUserDrawingView(SldWorks.DrawingDoc drawing)
+        {
+            try
+            {
+                var activeView = drawing.ActiveDrawingView as SldWorks.View;
+                if (activeView == null)
+                    return null;
+
+                string activeViewName = activeView.Name ?? "";
+                string sheetViewName = GetSheetViewName(drawing);
+
+                if (string.IsNullOrWhiteSpace(activeViewName))
+                    return null;
+
+                if (!string.IsNullOrWhiteSpace(sheetViewName) &&
+                    activeViewName.Equals(sheetViewName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                return activeView;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static SldWorks.View RequireActiveFarSideViewTarget(SldWorks.View? targetView)
+        {
+            if (targetView != null)
+                return targetView;
+
+            throw new Exception("Far Side View note needs to be created, but no drawing view is active. Activate the view that should own the Far Side View note, then run Fill Title Block again.");
+        }
+
+        private static bool NoteBelongsToView(NDwgAutoTool.Models.DrawingNoteInfo note, string viewName)
+        {
+            return !string.IsNullOrWhiteSpace(viewName) &&
+                   note.ViewName.Equals(viewName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static NDwgAutoTool.Models.DrawingNoteInfo? FindBestFarSideViewNote(
+            IEnumerable<NDwgAutoTool.Models.DrawingNoteInfo> candidates,
+            double targetX,
+            double targetY)
+        {
+            return candidates
+                .OrderBy(note => Math.Abs(note.X - targetX) + Math.Abs(note.Y - targetY))
+                .FirstOrDefault();
+        }
+
+        private static bool IsFarSideViewNoteVisiblyUsable(NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            try
+            {
+                if (note.NoteObject != null && !note.NoteObject.Visible)
+                    return false;
+
+                if (note.AnnotationObject != null && note.AnnotationObject.Visible == 0)
+                    return false;
+            }
+            catch
+            {
+            }
+
+            return true;
+        }
+
+        private static bool IsProbablyInvisibleSheetNote(
+            NDwgAutoTool.Models.DrawingNoteInfo note,
+            SldWorks.DrawingDoc drawing)
+        {
+            string sheetViewName = GetSheetViewName(drawing);
+
+            return !string.IsNullOrWhiteSpace(sheetViewName) &&
+                   note.ViewName.Equals(sheetViewName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetSheetViewName(SldWorks.DrawingDoc drawing)
+        {
+            try
+            {
+                var sheetView = drawing.GetFirstView() as SldWorks.View;
+                return sheetView?.Name ?? "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static void DeleteFarSideViewNote(
+            SldWorks.ModelDoc2 activeDoc,
+            NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            if (note.AnnotationObject == null)
+                return;
+
+            activeDoc.ClearSelection2(true);
+
+            if (note.AnnotationObject.Select3(false, null))
+            {
+                activeDoc.Extension.DeleteSelection2(
+                    (int)swDeleteSelectionOptions_e.swDelete_Absorbed);
+            }
+
+            activeDoc.ClearSelection2(true);
+            activeDoc.GraphicsRedraw2();
+            activeDoc.WindowRedraw();
+        }
+
+        private static void FixExistingFarSideViewNote(
+            SldWorks.ModelDoc2 activeDoc,
+            NDwgAutoTool.Models.DrawingNoteInfo note)
+        {
+            if (note.NoteObject == null)
+                throw new Exception("Far Side View note was found, but its SolidWorks note object is missing.");
+
+            note.NoteObject.SetText(FarSideViewExpectedText);
+            ApplyFarSideViewNoteFormatting(note.NoteObject);
+
+            if (note.AnnotationObject != null)
+                note.AnnotationObject.Visible = 1;
+
+            note.Text = FarSideViewExpectedText;
+
+            activeDoc.EditRebuild3();
+            activeDoc.ForceRebuild3(false);
+            activeDoc.GraphicsRedraw2();
+            activeDoc.WindowRedraw();
+        }
+
+        private static void ApplyFarSideViewNoteFormatting(SldWorks.Note note)
+        {
+            note.SetHeight(FarSideViewTextHeight);
+            note.SetTextJustification((int)swTextJustification_e.swTextJustificationCenter);
+
+            var annotation = note.GetAnnotation();
+            if (annotation != null)
+                ApplyFarSideViewParagraphFormatting(annotation);
+        }
+
+        private static void ApplyFarSideViewParagraphFormatting(SldWorks.Annotation annotation)
+        {
+            try
+            {
+                var paragraphs = annotation.GetParagraphs() as SldWorks.Paragraphs;
+                if (paragraphs == null)
+                    return;
+
+                int count = Math.Max(1, paragraphs.Count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    paragraphs.CurrentParagraph = i;
+
+                    if (!paragraphs.GetFormatting(out _, out double lineSpacing) || lineSpacing <= 0)
+                        lineSpacing = 1.0;
+
+                    paragraphs.SetFormatting(FarSideViewParagraphSpacing, lineSpacing);
+                    UnderlineFarSideViewJapaneseSegments(paragraphs);
+                    paragraphs.UpdateParagraph();
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static void UnderlineFarSideViewJapaneseSegments(SldWorks.Paragraphs paragraphs)
+        {
+            try
+            {
+                int segmentCount = paragraphs.GetTextSegmentCount();
+
+                for (int segment = 0; segment < segmentCount; segment++)
+                {
+                    string segmentText = StripSolidWorksTextTags(paragraphs.GetTextSegmentText(segment) ?? "");
+
+                    if (!segmentText.Contains(FarSideViewJapaneseText, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (segmentText.Contains(FarSideViewEnglishText, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var textFormat = paragraphs.GetTextSegmentFormat(segment) as SldWorks.TextFormat;
+                    if (textFormat == null)
+                        continue;
+
+                    textFormat.Underline = true;
+                    paragraphs.SetTextSegmentFormat(segment, textFormat);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static void CreateFarSideViewNoteInView(
+            SldWorks.ModelDoc2 activeDoc,
+            SldWorks.DrawingDoc drawing,
+            SldWorks.View targetView,
+            double x,
+            double y)
+        {
+            string targetViewName = targetView.Name ?? "";
+            if (string.IsNullOrWhiteSpace(targetViewName))
+                throw new Exception("Active drawing view has no name.");
+
+            bool activated = drawing.ActivateView(targetViewName);
+            if (!activated)
+                throw new Exception($"Failed to activate drawing view '{targetViewName}'.");
+
+            activeDoc.ClearSelection2(true);
+
+            var note = activeDoc.InsertNote(FarSideViewExpectedText);
+            if (note == null)
+                throw new Exception("Failed to create Far Side View note.");
+
+            note.LockPosition = false;
+            note.Angle = 0;
+            note.Visible = true;
+            note.BehindSheet = false;
+            note.SetTextPoint(x, y, 0);
+
+            var annotation = note.GetAnnotation();
+            if (annotation == null)
+                throw new Exception("Created Far Side View note has no annotation.");
+
+            annotation.Visible = 1;
+            annotation.SetPosition(x, y, 0);
+            ApplyFarSideViewNoteFormatting(note);
+
+            try
+            {
+                annotation.SetLeader3(
+                    (int)swLeaderStyle_e.swNO_LEADER,
+                    0,
+                    false,
+                    false,
+                    false,
+                    false);
+            }
+            catch
+            {
+            }
+
+            activeDoc.ClearSelection2(true);
+            activeDoc.EditRebuild3();
+            activeDoc.ForceRebuild3(false);
+            activeDoc.GraphicsRedraw2();
+            activeDoc.WindowRedraw();
+        }
+
+        private static SldWorks.View? FindRightmostDrawingView(SldWorks.DrawingDoc drawing)
+        {
+            var candidates = new List<(SldWorks.View View, double CenterX)>();
+
+            try
+            {
+                var view = drawing.GetFirstView() as SldWorks.View;
+
+                if (view != null)
+                    view = view.GetNextView() as SldWorks.View;
+
+                while (view != null)
+                {
+                    double[]? outline = ToDoubleArray((object?)view.GetOutline());
+
+                    if (outline is { Length: >= 4 })
+                    {
+                        double centerX = (Math.Min(outline[0], outline[2]) + Math.Max(outline[0], outline[2])) / 2.0;
+                        candidates.Add((view, centerX));
+                    }
+
+                    view = view.GetNextView() as SldWorks.View;
+                }
+            }
+            catch
+            {
+            }
+
+            return candidates
+                .OrderByDescending(candidate => candidate.CenterX)
+                .Select(candidate => candidate.View)
+                .FirstOrDefault();
+        }
+
+        private static (double X, double Y) GetFarSideViewNoteCreatePosition(
+            SldWorks.DrawingDoc drawing,
+            SldWorks.View? targetView)
+        {
+            var (sheetWidth, sheetHeight) = GetActiveSheetSize(drawing);
+
+            if (targetView != null)
+            {
+                double[]? outline = ToDoubleArray((object?)targetView.GetOutline());
+
+                if (outline is { Length: >= 4 })
+                {
+                    double left = Math.Min(outline[0], outline[2]);
+                    double right = Math.Max(outline[0], outline[2]);
+                    double bottom = Math.Min(outline[1], outline[3]);
+
+                    double x = (left + right) / 2.0;
+                    double y = bottom + FarSideViewYOffset;
+
+                    return (
+                        ClampToSheet(x, sheetWidth),
+                        ClampToSheet(y, sheetHeight));
+                }
+            }
+
+            return (
+                ClampToSheet(sheetWidth * 0.67, sheetWidth),
+                ClampToSheet(sheetHeight * 0.25, sheetHeight));
+        }
+
+        private static (double Width, double Height) GetActiveSheetSize(SldWorks.DrawingDoc drawing)
+        {
+            try
+            {
+                var sheet = drawing.GetCurrentSheet();
+                var props = sheet?.GetProperties() as double[];
+
+                if (props != null && props.Length >= 7 && props[5] > 0 && props[6] > 0)
+                    return (props[5], props[6]);
+            }
+            catch
+            {
+            }
+
+            return (0.420, 0.297);
+        }
+
+        private static double ClampToSheet(double value, double sheetSize)
+        {
+            if (sheetSize <= FarSideViewSheetMargin * 2.0)
+                return value;
+
+            return Math.Max(
+                FarSideViewSheetMargin,
+                Math.Min(sheetSize - FarSideViewSheetMargin, value));
+        }
+
+        private static double[]? ToDoubleArray(object? value)
+        {
+            if (value is double[] doubles)
+                return doubles;
+
+            if (value is object[] objects)
+            {
+                var result = new double[objects.Length];
+
+                for (int i = 0; i < objects.Length; i++)
+                    result[i] = Convert.ToDouble(objects[i]);
+
+                return result;
+            }
+
+            return null;
+        }
+
         private List<NDwgAutoTool.Models.CheckDwgReportRow> BuildSubpartReportRows(
             Dictionary<string, int> expected,
             Dictionary<string, int> actual)
@@ -2398,6 +3907,8 @@ namespace NDwgAutoTool
                 ws.Cells[r, 2].Value = rows[i].Result;
                 ws.Cells[r, 3].Value = rows[i].Details;
             }
+
+            ws.Cells[2, 2, Math.Max(rows.Count + 2, 2), 2].AutoFilter = true;
 
             ws.Column(1).Width = 26;
             ws.Column(2).Width = 16;
@@ -2530,6 +4041,8 @@ namespace NDwgAutoTool
                 activeDoc,
                 bomRows));
 
+            reportRows.AddRange(BuildFarSideViewNoteReportRows(notes));
+
             reportRows.AddRange(BuildHoleReportRows(holeCount));
 
             reportRows.AddRange(BuildSubpartReportRows(
@@ -2589,6 +4102,8 @@ namespace NDwgAutoTool
 
                 currentRow++;
             }
+
+            ws.Cells[2, 2, Math.Max(currentRow - 1, 2), 2].AutoFilter = true;
 
             ws.Column(1).Width = 28;
             ws.Column(2).Width = 16;
@@ -2673,7 +4188,7 @@ namespace NDwgAutoTool
             AddLog($"Current drawing: {drawingPartNo}");
 
             var workListReader = new WorkListReaderService();
-            var signature = workListReader.GetSignatureFromWorkList(workListFile);
+            var signature = workListReader.GetSignatureFromWorkList(workListFile, drawingPartNo);
 
             AddLog($"Signature Date: {signature.Date}");
             AddLog($"Signature Engineer: {signature.Engineer}");
@@ -2699,6 +4214,11 @@ namespace NDwgAutoTool
 
             if (!solidWorksService.IsDrawing(activeDoc))
                 throw new Exception("Active SolidWorks document is not a drawing.");
+
+            var drawingDoc = activeDoc as SldWorks.DrawingDoc;
+            var farSideViewTarget = drawingDoc != null
+                ? GetActiveUserDrawingView(drawingDoc)
+                : null;
 
             var fileFinder = new FileFinderService();
             var workListFile = fileFinder.FindWorkListFile();
@@ -2730,12 +4250,15 @@ namespace NDwgAutoTool
             solidWorksService.UpdateOrCreateNoteAtPositionInSheetFormat(activeDoc, notes, 0.5805, 0.3080, drawingNumber, true);
             solidWorksService.UpdateOrCreateNoteAtPositionInSheetFormat(activeDoc, notes, 0.5808, 0.3525, sheetNumber, true);
 
+            string farSideViewResult = EnsureFarSideViewNoteForDrawing(activeDoc, solidWorksService, farSideViewTarget);
+            AddLog(farSideViewResult);
+
             activeDoc.GraphicsRedraw2();
             activeDoc.WindowRedraw();
 
             AddLog("Title block updated successfully.");
 
-            return $"Title block filled successfully for {drawingPartNo}.";
+            return $"Title block filled successfully for {drawingPartNo}.\n\n{farSideViewResult}";
         }
 
         private string CreateFlagnotesForDrawing(SldWorks.ModelDoc2 activeDoc, SolidWorksService solidWorksService)
@@ -2767,14 +4290,48 @@ namespace NDwgAutoTool
             if (rows.Count == 0)
                 throw new Exception($"No BOM rows found for drawing {drawingPartNo}.");
 
-            var selfRow = rows.FirstOrDefault(r =>
+            string expectedSelfPartNo = BuildExpectedSelfPartFromDrawing(drawingPartNo);
+            AddLog($"Expected self part from drawing number: {expectedSelfPartNo}");
+
+            var hPanelSelfRows = rows
+                .Where(r =>
+                    PartNumberHelper.IsSelfPart(r.SubPartNo) &&
+                    !string.IsNullOrWhiteSpace(r.Nomenclature) &&
+                    r.Nomenclature.Trim().Equals("H PANEL", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var selfRow = hPanelSelfRows.FirstOrDefault(r =>
+                NormalizeSelfPartCandidate(r.SubPartNo).Equals(expectedSelfPartNo, StringComparison.OrdinalIgnoreCase));
+
+            if (selfRow == null)
+            {
+                selfRow = hPanelSelfRows.FirstOrDefault(r =>
+                    NormalizeSelfPartCandidate(r.SubPartNo).StartsWith("P", StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (selfRow == null)
+            {
+                selfRow = hPanelSelfRows.FirstOrDefault();
+            }
+
+            if (selfRow == null)
+            {
+                selfRow = rows.FirstOrDefault(r =>
                 PartNumberHelper.IsSelfPart(r.SubPartNo) &&
                 !string.IsNullOrWhiteSpace(r.Nomenclature) &&
                 r.Nomenclature.Trim().Equals("H PANEL", StringComparison.OrdinalIgnoreCase));
+            }
 
             if (selfRow == null)
             {
                 // fallback to old logic in case some older project does not have H PANEL filled as expected
+                selfRow = rows.FirstOrDefault(r =>
+                    PartNumberHelper.IsSelfPart(r.SubPartNo) &&
+                    NormalizeSelfPartCandidate(r.SubPartNo).StartsWith("P", StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (selfRow == null)
+            {
                 selfRow = rows.FirstOrDefault(r => PartNumberHelper.IsSelfPart(r.SubPartNo));
             }
 
@@ -2782,6 +4339,11 @@ namespace NDwgAutoTool
                 throw new Exception("Self part row not found in BOM.");
 
             AddLog($"BOM self part: {selfRow.SubPartNo}");
+
+            if (!NormalizeSelfPartCandidate(selfRow.SubPartNo).Equals(expectedSelfPartNo, StringComparison.OrdinalIgnoreCase))
+            {
+                AddLog($"WARNING: BOM self part does not match expected self part from drawing. Expected {expectedSelfPartNo}; BOM selected {selfRow.SubPartNo}.");
+            }
 
             var flagRows = rows
                 .Where(r =>
@@ -2819,6 +4381,11 @@ namespace NDwgAutoTool
                 .ToList();
 
             var selfCallout = selfCandidates.FirstOrDefault(n => n.HasLeader);
+            selfCallout ??= FindLikelyMistypedSelfPartCallout(
+                notes,
+                drawingPartNo,
+                selfRow.SubPartNo,
+                AddLog);
 
             if (selfCallout == null)
             {
@@ -3015,6 +4582,222 @@ namespace NDwgAutoTool
                 return $"Flagnotes completed with warnings for {drawingPartNo}.\n\nLeadered updated: {updatedLeaderedFlagnotes}\nCreated: {createdCount}\nFailed: {failedCount}";
 
             return $"Flagnotes created successfully for {drawingPartNo}.\n\nLeadered updated: {updatedLeaderedFlagnotes}\nCreated: {createdCount}";
+        }
+
+        private static NDwgAutoTool.Models.DrawingNoteInfo? FindLikelyMistypedSelfPartCallout(
+            IEnumerable<NDwgAutoTool.Models.DrawingNoteInfo> notes,
+            string drawingPartNo,
+            string bomSelfPartNo,
+            Action<string>? log)
+        {
+            string expectedSelfPart = NormalizeSelfPartCandidate(bomSelfPartNo);
+            string expectedFromDrawing = BuildExpectedSelfPartFromDrawing(drawingPartNo);
+            var candidates = notes
+                .Where(note =>
+                    note.NoteObject != null &&
+                    IsSelfPartTypoCandidate(note.Text, expectedSelfPart))
+                .Select(note => new
+                {
+                    Note = note,
+                    Text = NormalizeSelfPartCandidate(note.Text),
+                    Distance = GetSelfPartTypoDistance(note.Text, expectedSelfPart),
+                    DistanceToExpectedFromDrawing = GetSelfPartTypoDistance(note.Text, expectedFromDrawing)
+                })
+                .Where(candidate => candidate.Distance is >= 0 and <= 1)
+                .OrderBy(candidate => candidate.Distance)
+                .ThenBy(candidate => candidate.DistanceToExpectedFromDrawing)
+                .ThenBy(candidate => candidate.Note.Text, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                var seen = notes
+                    .Where(note => note.NoteObject != null)
+                    .Select(note => NormalizeSelfPartCandidate(note.Text))
+                    .Where(text =>
+                        !string.IsNullOrWhiteSpace(text) &&
+                        Math.Abs(text.Length - expectedSelfPart.Length) <= 2 &&
+                        text.StartsWith("P", StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(8)
+                    .ToList();
+
+                if (seen.Count > 0)
+                    log?.Invoke($"Self-part typo scan found no safe match for {expectedSelfPart}. Nearby bare note text seen: {string.Join(", ", seen)}");
+
+                return null;
+            }
+
+            var best = candidates[0];
+
+            if (candidates.Count > 1 && candidates[1].Distance == best.Distance)
+            {
+                log?.Invoke(
+                    $"WARNING: Multiple possible mistyped self-part callouts found. Not auto-correcting: {string.Join(", ", candidates.Select(c => c.Note.Text).Take(5))}");
+                return null;
+            }
+
+            log?.Invoke($"Likely mistyped self-part callout found: {best.Note.Text} (expected {expectedSelfPart}, HasLeader={best.Note.HasLeader}).");
+            return best.Note;
+        }
+
+        private static bool IsSelfPartTypoCandidate(string text, string expectedSelfPart)
+        {
+            string normalized = NormalizeSelfPartCandidate(text);
+
+            if (string.IsNullOrWhiteSpace(normalized) || string.IsNullOrWhiteSpace(expectedSelfPart))
+                return false;
+
+            if (!normalized.StartsWith("P", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (Math.Abs(normalized.Length - expectedSelfPart.Length) > 1)
+                return false;
+
+            return normalized.Count(char.IsLetter) >= 4 &&
+                   normalized.Count(char.IsDigit) >= 8 &&
+                   GetSelfPartTypoDistance(normalized, expectedSelfPart) <= 1;
+        }
+
+        private static string NormalizeSelfPartCandidate(string text)
+        {
+            string normalized = (text ?? "")
+                .Trim()
+                .Replace(" ", "", StringComparison.Ordinal)
+                .Replace("\r", "", StringComparison.Ordinal)
+                .Replace("\n", "", StringComparison.Ordinal)
+                .ToUpperInvariant();
+
+            return new string(normalized
+                .Where(c => (c >= 'A' && c <= 'Z') || char.IsDigit(c) || c == '-')
+                .ToArray());
+        }
+
+        private static string BuildExpectedSelfPartFromDrawing(string drawingPartNo)
+        {
+            string normalizedDrawing = NormalizeSelfPartCandidate(drawingPartNo);
+
+            if (normalizedDrawing.Length <= 1)
+                return normalizedDrawing;
+
+            return "P" + normalizedDrawing[1..];
+        }
+
+        private static int GetNearestOtherBomSubpartDistance(
+            string candidate,
+            string expectedSelfPart,
+            IEnumerable<string> knownBomSubparts)
+        {
+            int nearest = int.MaxValue;
+            string normalizedCandidate = NormalizeSelfPartCandidate(candidate);
+
+            foreach (string subpart in knownBomSubparts)
+            {
+                if (string.IsNullOrWhiteSpace(subpart) ||
+                    subpart.Equals(expectedSelfPart, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                int distance = GetSelfPartEditDistance(normalizedCandidate, subpart);
+                if (distance < nearest)
+                    nearest = distance;
+            }
+
+            return nearest;
+        }
+
+        private static int GetSelfPartEditDistance(string candidate, string expected)
+        {
+            candidate = NormalizeSelfPartCandidate(candidate);
+            expected = NormalizeSelfPartCandidate(expected);
+
+            if (string.IsNullOrWhiteSpace(candidate) || string.IsNullOrWhiteSpace(expected))
+                return int.MaxValue;
+
+            if (Math.Abs(candidate.Length - expected.Length) > 1)
+                return int.MaxValue;
+
+            int i = 0;
+            int j = 0;
+            int edits = 0;
+
+            while (i < candidate.Length && j < expected.Length)
+            {
+                if (candidate[i] != expected[i])
+                {
+                    edits++;
+
+                    if (edits > 1)
+                        return edits;
+
+                    if (candidate.Length > expected.Length)
+                    {
+                        i++;
+                        continue;
+                    }
+
+                    if (candidate.Length < expected.Length)
+                    {
+                        j++;
+                        continue;
+                    }
+                }
+
+                i++;
+                j++;
+            }
+
+            if (i < candidate.Length || j < expected.Length)
+                edits++;
+
+            return edits;
+        }
+
+        private static int GetSelfPartTypoDistance(string candidate, string expected)
+        {
+            candidate = NormalizeSelfPartCandidate(candidate);
+            expected = NormalizeSelfPartCandidate(expected);
+
+            if (candidate.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                return 0;
+
+            if (Math.Abs(candidate.Length - expected.Length) > 1)
+                return int.MaxValue;
+
+            if (candidate.Length == expected.Length)
+            {
+                int differences = 0;
+
+                for (int i = 0; i < candidate.Length; i++)
+                {
+                    if (candidate[i] != expected[i])
+                        differences++;
+                }
+
+                return differences;
+            }
+
+            if (candidate.Length + 1 == expected.Length)
+                return CanRemoveOneCharacterToMatch(expected, candidate) ? 1 : int.MaxValue;
+
+            if (expected.Length + 1 == candidate.Length)
+                return CanRemoveOneCharacterToMatch(candidate, expected) ? 1 : int.MaxValue;
+
+            return int.MaxValue;
+        }
+
+        private static bool CanRemoveOneCharacterToMatch(string longer, string shorter)
+        {
+            for (int i = 0; i < longer.Length; i++)
+            {
+                string shortened = longer.Remove(i, 1);
+
+                if (shortened.Equals(shorter, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
 
         private bool ShouldDeleteAutoGeneratedNoLeaderNote(
@@ -3460,3 +5243,9 @@ namespace NDwgAutoTool
         }
     }
 }
+
+
+
+
+
+

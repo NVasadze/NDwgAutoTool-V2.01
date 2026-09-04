@@ -6,6 +6,6 @@ namespace NDwgAutoTool.Application.Abstractions
     {
         string GetTitle(string filePath, string drawingPartNo);
         string GetProjectCode(string filePath);
-        SignatureInfo GetSignature(string filePath);
+        SignatureInfo GetSignature(string filePath, string drawingPartNo);
     }
 }

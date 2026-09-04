@@ -9,6 +9,9 @@ namespace NDwgAutoTool.Services
 {
     public class SolidWorksService
     {
+        private const double TitleBlockNoteTextHeight = 0.00494;
+        private const int TitleBlockNoteTextSizeInPoints = 14;
+
         [DllImport("oleaut32.dll", PreserveSig = false)]
         private static extern void GetActiveObject(
             ref Guid rclsid,
@@ -66,6 +69,106 @@ namespace NDwgAutoTool.Services
                 "",
                 ref errors,
                 ref warnings) as SldWorksInterop.ModelDoc2;
+        }
+
+        public SldWorksInterop.ModelDoc2? OpenAssembly(
+            SldWorksInterop.ISldWorks swApp,
+            string filePath,
+            out int errors,
+            out int warnings)
+        {
+            errors = 0;
+            warnings = 0;
+
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Assembly file path is empty.", nameof(filePath));
+
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("Assembly file was not found.", filePath);
+
+            return swApp.OpenDoc6(
+                filePath,
+                (int)SwConstInterop.swDocumentTypes_e.swDocASSEMBLY,
+                (int)SwConstInterop.swOpenDocOptions_e.swOpenDocOptions_Silent,
+                "",
+                ref errors,
+                ref warnings) as SldWorksInterop.ModelDoc2;
+        }
+
+        public SldWorksInterop.ModelDoc2? OpenPart(
+            SldWorksInterop.ISldWorks swApp,
+            string filePath,
+            out int errors,
+            out int warnings)
+        {
+            errors = 0;
+            warnings = 0;
+
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Part file path is empty.", nameof(filePath));
+
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("Part file was not found.", filePath);
+
+            return swApp.OpenDoc6(
+                filePath,
+                (int)SwConstInterop.swDocumentTypes_e.swDocPART,
+                (int)SwConstInterop.swOpenDocOptions_e.swOpenDocOptions_Silent,
+                "",
+                ref errors,
+                ref warnings) as SldWorksInterop.ModelDoc2;
+        }
+
+        public SldWorksInterop.ModelDoc2? FindOpenDocumentByPath(
+            SldWorksInterop.ISldWorks swApp,
+            string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return null;
+
+            string targetPath = Path.GetFullPath(filePath);
+            object[]? docs = swApp.GetDocuments() as object[];
+
+            if (docs == null)
+                return null;
+
+            foreach (object obj in docs)
+            {
+                var model = obj as SldWorksInterop.ModelDoc2;
+                if (model == null)
+                    continue;
+
+                try
+                {
+                    string modelPath = model.GetPathName();
+
+                    if (!string.IsNullOrWhiteSpace(modelPath) &&
+                        string.Equals(Path.GetFullPath(modelPath), targetPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return model;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
+
+        public void CloseDocumentWithoutSaving(
+            SldWorksInterop.ISldWorks swApp,
+            SldWorksInterop.ModelDoc2 model)
+        {
+            string title = model.GetTitle() ?? "";
+
+            if (string.IsNullOrWhiteSpace(title))
+                title = Path.GetFileName(model.GetPathName());
+
+            if (string.IsNullOrWhiteSpace(title))
+                throw new Exception("Could not determine SolidWorks document title for close.");
+
+            swApp.CloseDoc(title);
         }
 
         public string GetActiveDrawingPartNo(SldWorksInterop.ModelDoc2 model)
@@ -348,9 +451,11 @@ namespace NDwgAutoTool.Services
                     noteObj.SetText(newText);
 
                     noteObj.Angle = vertical ? Math.PI / 2.0 : 0;
+                    ApplyTitleBlockNoteTextHeight(noteObj);
 
-                    // 🔥 SET FONT SIZE (14 pt)
-                    noteObj.SetHeight(0.00494);
+                    model.EditRebuild3();
+                    model.GraphicsRedraw2();
+                    model.WindowRedraw();
 
                     return;
                 }
@@ -370,9 +475,7 @@ namespace NDwgAutoTool.Services
 
             note.LockPosition = false;
             note.Angle = vertical ? Math.PI / 2.0 : 0;
-
-            // 🔥 SET FONT SIZE (14 pt)
-            note.SetHeight(0.00494);
+            ApplyTitleBlockNoteTextHeight(note);
 
             var annotation = note.GetAnnotation();
             if (annotation == null)
@@ -386,6 +489,67 @@ namespace NDwgAutoTool.Services
 
             model.GraphicsRedraw2();
             model.WindowRedraw();
+        }
+
+        private static void ApplyTitleBlockNoteTextHeight(SldWorksInterop.Note note)
+        {
+            note.SetHeight(TitleBlockNoteTextHeight);
+
+            var annotation = note.GetAnnotation();
+            if (annotation == null)
+                return;
+
+            ApplyTitleBlockAnnotationTextHeight(annotation);
+        }
+
+        private static void ApplyTitleBlockAnnotationTextHeight(SldWorksInterop.Annotation annotation)
+        {
+            try
+            {
+                dynamic dynamicAnnotation = annotation;
+                dynamic textFormat = dynamicAnnotation.GetTextFormat(0);
+
+                if (textFormat != null)
+                {
+                    textFormat.CharHeight = TitleBlockNoteTextHeight;
+                    textFormat.CharHeightInPts = TitleBlockNoteTextSizeInPoints;
+                    dynamicAnnotation.SetTextFormat(0, false, textFormat);
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                var paragraphs = annotation.GetParagraphs() as SldWorksInterop.Paragraphs;
+                if (paragraphs == null)
+                    return;
+
+                int paragraphCount = Math.Max(1, paragraphs.Count);
+
+                for (int paragraph = 0; paragraph < paragraphCount; paragraph++)
+                {
+                    paragraphs.CurrentParagraph = paragraph;
+                    int segmentCount = paragraphs.GetTextSegmentCount();
+
+                    for (int segment = 0; segment < segmentCount; segment++)
+                    {
+                        var textFormat = paragraphs.GetTextSegmentFormat(segment) as SldWorksInterop.TextFormat;
+                        if (textFormat == null)
+                            continue;
+
+                        textFormat.CharHeight = TitleBlockNoteTextHeight;
+                        textFormat.CharHeightInPts = TitleBlockNoteTextSizeInPoints;
+                        paragraphs.SetTextSegmentFormat(segment, textFormat);
+                    }
+
+                    paragraphs.UpdateParagraph();
+                }
+            }
+            catch
+            {
+            }
         }
 
         public void InsertNoteBlockAtOrigin(SldWorksInterop.ModelDoc2 model, string blockPath)

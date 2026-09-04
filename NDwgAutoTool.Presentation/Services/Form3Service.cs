@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32;
 using NDwgAutoTool.Form3;
+using SldWorks;
 using System.IO;
 using System.Windows;
 using Excel = Microsoft.Office.Interop.Excel;
@@ -20,6 +21,11 @@ namespace NDwgAutoTool.Services
         private void Log(string message)
         {
             _log?.Invoke(message);
+        }
+
+        public void SetTargetDrawing(ModelDoc2? drawing)
+        {
+            _swService.SetTargetModel(drawing);
         }
 
         public int GetRealDrawingViewCount()
@@ -92,7 +98,8 @@ namespace NDwgAutoTool.Services
         public void CreateForm3ToPath(
             string outputPath,
             List<string>? additionalNoteNumbers = null,
-            bool showSuccessPopup = false)
+            bool showSuccessPopup = false,
+            bool throwOnCancel = false)
         {
             Excel.Application? excel = null;
             Excel.Workbook? wb = null;
@@ -305,6 +312,9 @@ namespace NDwgAutoTool.Services
                 }
 
                 Log("Form3 cancelled.");
+
+                if (throwOnCancel)
+                    throw;
             }
             catch (Exception ex)
             {

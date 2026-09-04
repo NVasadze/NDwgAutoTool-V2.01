@@ -76,34 +76,40 @@ namespace NDwgAutoTool.Services
 
         public string FindMatchingBlockFile(string projectCode, IReadOnlyList<string> requiredCodes)
         {
-            if (string.IsNullOrWhiteSpace(projectCode))
-                throw new Exception("Project code is empty.");
-
             if (requiredCodes == null || requiredCodes.Count == 0)
                 throw new Exception("Required note codes are empty.");
 
-            var files = _resources.NoteBlockFiles
-                .Where(f => Path.GetFileNameWithoutExtension(f)
-                    .StartsWith(projectCode + "_", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (files.Count == 0)
-                throw new Exception($"No .SLDBLK files found for project '{projectCode}' in block folder.");
-
             var requiredSet = new HashSet<string>(requiredCodes, StringComparer.OrdinalIgnoreCase);
+            var files = string.IsNullOrWhiteSpace(projectCode)
+                ? new List<string>()
+                : _resources.NoteBlockFiles
+                    .Where(f => Path.GetFileNameWithoutExtension(f)
+                        .StartsWith(projectCode + "_", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
 
-            foreach (var file in files)
-            {
-                string fileName = Path.GetFileNameWithoutExtension(file);
-                var fileCodes = ParseCodesFromFileName(fileName);
-                var fileSet = new HashSet<string>(fileCodes, StringComparer.OrdinalIgnoreCase);
+            string? projectMatch = FindExactCodeMatch(files, requiredSet);
+            if (!string.IsNullOrWhiteSpace(projectMatch))
+                return projectMatch;
 
-                if (requiredSet.SetEquals(fileSet))
-                    return file;
-            }
+            if (files.Count > 0)
+                throw new Exception(
+                    $"No exact matching .SLDBLK found for project '{projectCode}' and notes [{string.Join(", ", requiredCodes)}].");
+
+            var fallbackMatches = FindExactCodeMatches(_resources.NoteBlockFiles, requiredSet);
+
+            if (fallbackMatches.Count == 1)
+                return fallbackMatches[0];
+
+            if (fallbackMatches.Count > 1)
+                throw new Exception(
+                    $"Multiple .SLDBLK files match notes [{string.Join(", ", requiredCodes)}]. Add a project code to WORK_LIST DATA or make the note block code set unique.");
+
+            if (string.IsNullOrWhiteSpace(projectCode))
+                throw new Exception(
+                    $"Project code was not found in WORK_LIST DATA and no .SLDBLK matched notes [{string.Join(", ", requiredCodes)}].");
 
             throw new Exception(
-                $"No exact matching .SLDBLK found for project '{projectCode}' and notes [{string.Join(", ", requiredCodes)}].");
+                $"No .SLDBLK files found for project '{projectCode}' in block folder.");
         }
 
         public List<string> ExpandExcelNoteTokens(List<string> rawTokens)
@@ -151,6 +157,29 @@ namespace NDwgAutoTool.Services
                 .Select(x => x.Trim().ToUpper())
                 .Where(x => Regex.IsMatch(x, @"^(G\d+|T\d+|B\d+|SE\d+)$", RegexOptions.IgnoreCase))
                 .ToList();
+        }
+
+        private static string? FindExactCodeMatch(IEnumerable<string> files, HashSet<string> requiredSet)
+        {
+            var matches = FindExactCodeMatches(files, requiredSet);
+            return matches.Count == 1 ? matches[0] : null;
+        }
+
+        private static List<string> FindExactCodeMatches(IEnumerable<string> files, HashSet<string> requiredSet)
+        {
+            var matches = new List<string>();
+
+            foreach (var file in files)
+            {
+                string fileName = Path.GetFileNameWithoutExtension(file);
+                var fileCodes = ParseCodesFromFileName(fileName);
+                var fileSet = new HashSet<string>(fileCodes, StringComparer.OrdinalIgnoreCase);
+
+                if (requiredSet.SetEquals(fileSet))
+                    matches.Add(file);
+            }
+
+            return matches;
         }
     }
 }

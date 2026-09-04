@@ -89,6 +89,107 @@ namespace NDwgAutoTool.Services
 
             string outputPath = GetNextCheckPdfPath(folder, drawingName);
 
+            Log($"Create Check PDF drawing: {drawingName}");
+
+            try
+            {
+                model.ViewZoomtofit2();
+                model.GraphicsRedraw2();
+            }
+            catch
+            {
+            }
+
+            Log($"Create Check PDF output path: {outputPath}");
+
+            int errors = 0;
+            int warnings = 0;
+
+            bool ok = model.Extension.SaveAs(
+                outputPath,
+                (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                null,
+                ref errors,
+                ref warnings);
+
+            if (!ok || errors != 0)
+                throw new Exception($"Failed to save PDF. SaveAs errors={errors}, warnings={warnings}.");
+
+            Log("Create Check PDF completed successfully.");
+
+            return outputPath;
+        }
+        public string CreatePdfFromDrawingToFolder(ModelDoc2 model, string outputFolder)
+        {
+            if (model == null)
+                throw new Exception("Model is null.");
+
+            if (model.GetType() != (int)swDocumentTypes_e.swDocDRAWING)
+                throw new Exception("Document is not a drawing.");
+
+            if (string.IsNullOrWhiteSpace(outputFolder) || !Directory.Exists(outputFolder))
+                throw new Exception("PDF output folder does not exist.");
+
+            string modelPath = model.GetPathName();
+
+            if (string.IsNullOrWhiteSpace(modelPath))
+                throw new Exception("Drawing must be saved before creating PDF.");
+
+            string drawingName = Path.GetFileNameWithoutExtension(modelPath);
+            string outputPath = GetNextCheckPdfPath(outputFolder, drawingName);
+
+            Log($"Create Check PDF drawing: {drawingName}");
+
+            try
+            {
+                model.ViewZoomtofit2();
+                model.GraphicsRedraw2();
+            }
+            catch
+            {
+            }
+
+            Log($"Create Check PDF output path: {outputPath}");
+
+            int errors = 0;
+            int warnings = 0;
+
+            bool ok = model.Extension.SaveAs(
+                outputPath,
+                (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                null,
+                ref errors,
+                ref warnings);
+
+            if (!ok || errors != 0)
+                throw new Exception($"Failed to save PDF. SaveAs errors={errors}, warnings={warnings}.");
+
+            Log("Create Check PDF completed successfully.");
+
+            return outputPath;
+        }
+
+        public string CreatePdfNoCheckFromDrawing(ModelDoc2 model, string outputFolder)
+        {
+            if (model == null)
+                throw new Exception("Model is null.");
+
+            if (model.GetType() != (int)swDocumentTypes_e.swDocDRAWING)
+                throw new Exception("Document is not a drawing.");
+
+            if (string.IsNullOrWhiteSpace(outputFolder) || !Directory.Exists(outputFolder))
+                throw new Exception("PDF output folder does not exist.");
+
+            string modelPath = model.GetPathName();
+
+            if (string.IsNullOrWhiteSpace(modelPath))
+                throw new Exception("Drawing must be saved before creating PDF.");
+
+            string drawingName = Path.GetFileNameWithoutExtension(modelPath);
+            string outputPath = Path.Combine(outputFolder, $"{drawingName}.pdf");
+
             Log($"Create PDF drawing: {drawingName}");
 
             try
@@ -99,6 +200,9 @@ namespace NDwgAutoTool.Services
             catch
             {
             }
+
+            if (File.Exists(outputPath))
+                Log($"Create PDF: replacing existing PDF: {outputPath}");
 
             Log($"Create PDF output path: {outputPath}");
 
@@ -137,3 +241,5 @@ namespace NDwgAutoTool.Services
         }
     }
 }
+
+

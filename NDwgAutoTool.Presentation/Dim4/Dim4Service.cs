@@ -268,6 +268,12 @@ namespace NDwgAutoTool.Dim4
                         {
                         }
 
+                        if (IsSketchDisplayDimension(fullName))
+                        {
+                            Log($"Dim4: ignored sketch dimension '{fullName}'.");
+                            continue;
+                        }
+
                         try
                         {
                             displayText = GetFullDisplayDimensionText(dispDim);
@@ -309,6 +315,18 @@ namespace NDwgAutoTool.Dim4
             }
 
             return result;
+        }
+
+        private bool IsSketchDisplayDimension(string fullName)
+        {
+            if (string.IsNullOrWhiteSpace(fullName))
+                return false;
+
+            string upper = fullName.ToUpperInvariant();
+
+            return upper.Contains("@SKETCH", StringComparison.OrdinalIgnoreCase) ||
+                   upper.Contains("@ｽｹｯﾁ", StringComparison.OrdinalIgnoreCase) ||
+                   upper.Contains("@スケッチ", StringComparison.OrdinalIgnoreCase);
         }
 
         private string GetFullDisplayDimensionText(DisplayDimension dispDim)
